@@ -1,0 +1,67 @@
+name: daily-design-signal
+
+on:
+  schedule:
+    - cron: "50 15 * * *"
+  workflow_dispatch:
+    inputs:
+      mode:
+        description: Collection mode
+        type: choice
+        required: true
+        default: fixture
+        options:
+          - fixture
+          - live
+
+permissions:
+  contents: read
+
+concurrency:
+  group: designsignal-daily
+  cancel-in-progress: false
+
+jobs:
+  daily:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      RUN_MODE: ${{ inputs.mode || 'fixture' }}
+      DESIGNSIGNAL_DATA_DIR: ${{ github.workspace }}/data
+      DESIGNSIGNAL_MODEL: ${{ vars.DESIGNSIGNAL_MODEL }}
+      DESIGNSIGNAL_OPENAI_BASE_URL: ${{ vars.DESIGNSIGNAL_OPENAI_BASE_URL }}
+      DESIGNSIGNAL_OPENAI_API_KEY: ${{ secrets.DESIGNSIGNAL_OPENAI_API_KEY }}
+      DESIGNSIGNAL_PUSH_CHANNELS: ${{ vars.DESIGNSIGNAL_PUSH_CHANNELS || 'generic' }}
+      DESIGNSIGNAL_WEBHOOK_URL: ${{ secrets.DESIGNSIGNAL_WEBHOOK_URL }}
+      FEISHU_WEBHOOK_URL: ${{ secrets.FEISHU_WEBHOOK_URL }}
+      WECOM_WEBHOOK_URL: ${{ secrets.WECOM_WEBHOOK_URL }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci --ignore-scripts
+      - run: npm test
+      - run: node ./bin/designsignal.mjs doctor
+      - name: Generate daily report
+        shell: bash
+        run: |
+          DATE="$(TZ=Asia/Shanghai date +%F)"
+          if [ "$RUN_MODE" = "live" ]; then
+            node ./bin/designsignal.mjs daily --date "$DATE"
+          else
+            node ./bin/designsignal.mjs daily --fixture --date "$DATE" --no-push
+          fi
+      - name: Upload report and audit trail
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: designsignal-${{ github.run_id }}
+          path: |
+            data/reports/
+            data/manifest.jsonl
+            data/outbox/
+            data/cache/index.jsonl
+          if-no-files-found: warn
+          retention-days: 30

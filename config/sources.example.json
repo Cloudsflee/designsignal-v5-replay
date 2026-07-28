@@ -1,0 +1,36 @@
+{
+  "sources": [
+    {
+      "id": "openalex-design-hci",
+      "kind": "openalex",
+      "category": "paper",
+      "name": "OpenAlex Design & HCI",
+      "institution": "OpenAlex",
+      "url": "https://api.openalex.org/works?search=design%20HCI%20AI&per-page=20"
+    },
+    {
+      "id": "arxiv-hci-ai",
+      "kind": "arxiv",
+      "category": "paper",
+      "name": "arXiv HCI & AI",
+      "institution": "arXiv",
+      "url": "https://export.arxiv.org/api/query?search_query=all:%22human-computer%20interaction%22%20AND%20all:AI&start=0&max_results=20"
+    },
+    {
+      "id": "public-lab-feed",
+      "kind": "rss",
+      "category": "frontier",
+      "name": "Public laboratory feed",
+      "institution": "Configured by operator",
+      "url": "https://rsshub.example.com/public/lab/feed"
+    },
+    {
+      "id": "allowlisted-product-page",
+      "kind": "page",
+      "category": "product",
+      "name": "Allowlisted product page",
+      "institution": "Configured by operator",
+      "url": "https://products.example.com/latest"
+    }
+  ]
+}

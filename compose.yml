@@ -1,0 +1,53 @@
+name: designsignal-v5
+
+x-common: &common
+  image: designsignal-v5-replay:5.0.0
+  build:
+    context: .
+  init: true
+  restart: unless-stopped
+  read_only: true
+  cap_drop:
+    - ALL
+  security_opt:
+    - no-new-privileges:true
+  tmpfs:
+    - /tmp:size=32m,mode=1777
+  volumes:
+    - designsignal-v5-data:/app/data
+    - ./config:/app/config:ro
+  env_file:
+    - path: .env
+      required: false
+  environment:
+    DESIGNSIGNAL_DATA_DIR: /app/data
+    DESIGNSIGNAL_HOST: 0.0.0.0
+    DESIGNSIGNAL_PORT: 3379
+
+services:
+  dashboard:
+    <<: *common
+    container_name: designsignal-v5-dashboard
+    ports:
+      - "127.0.0.1:${DESIGNSIGNAL_PUBLIC_PORT:-3385}:3379"
+    command: ["node", "./bin/designsignal.mjs", "serve"]
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:3379/healthz').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+      interval: 20s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+
+  scheduler:
+    <<: *common
+    container_name: designsignal-v5-scheduler
+    command: ["node", "./bin/designsignal.mjs", "schedule"]
+    depends_on:
+      dashboard:
+        condition: service_healthy
+    healthcheck:
+      disable: true
+
+volumes:
+  designsignal-v5-data:
+    name: designsignal-v5-data
