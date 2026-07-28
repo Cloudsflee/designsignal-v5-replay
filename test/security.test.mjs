@@ -3,8 +3,22 @@ import test from 'node:test';
 import { hostAllowed, isPublicAddress, readLimitedWebResponse, validatePublicUrl } from '../src/security.mjs';
 import { redactSecrets } from '../src/util.mjs';
 
-test('private, loopback, link-local, and mapped addresses are blocked', () => {
-  for (const address of ['127.0.0.1', '10.1.2.3', '172.16.1.2', '192.168.1.2', '169.254.1.1', '::1', 'fc00::1', 'fe80::1', '::ffff:127.0.0.1'])
+test('private, loopback, link-local, reserved, and mapped addresses are blocked', () => {
+  for (const address of [
+    '127.0.0.1',
+    '10.1.2.3',
+    '172.16.1.2',
+    '192.168.1.2',
+    '169.254.1.1',
+    '192.0.2.10',
+    '198.51.100.10',
+    '203.0.113.10',
+    '::1',
+    'fc00::1',
+    'fe80::1',
+    '2001:db8::1',
+    '::ffff:127.0.0.1'
+  ])
     assert.equal(isPublicAddress(address), false, address);
   assert.equal(isPublicAddress('8.8.8.8'), true);
   assert.equal(isPublicAddress('2606:4700:4700::1111'), true);

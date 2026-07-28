@@ -37,9 +37,122 @@ test('live adapter attaches response hash, MIME, bytes, DNS, access, and license
   assert.equal(item.provenance.license.status, 'unknown');
 });
 
+test('live collection routes OpenAlex, arXiv, RSS, Atom, and allowlisted page adapters', async () => {
+  const config = { ...fixtureConfig(await temporaryDirectory()), mode: 'live' };
+  const sources = [
+    {
+      id: 'openalex-source',
+      kind: 'openalex',
+      category: 'paper',
+      name: 'OpenAlex Source',
+      url: 'https://api.openalex.org/works'
+    },
+    {
+      id: 'arxiv-source',
+      kind: 'arxiv',
+      category: 'paper',
+      name: 'arXiv Source',
+      url: 'https://export.arxiv.org/api/query'
+    },
+    {
+      id: 'rss-source',
+      kind: 'rss',
+      category: 'frontier',
+      name: 'RSS Source',
+      url: 'https://feed.example.com/rss'
+    },
+    {
+      id: 'atom-source',
+      kind: 'atom',
+      category: 'frontier',
+      name: 'Atom Source',
+      url: 'https://feed.example.com/atom'
+    },
+    {
+      id: 'page-source',
+      kind: 'page',
+      category: 'frontier',
+      name: 'Page Source',
+      url: 'https://feed.example.com/page'
+    }
+  ];
+  const bodies = new Map([
+    [
+      sources[0].url,
+      JSON.stringify({
+        results: [
+          {
+            id: 'https://openalex.org/W1',
+            title: 'OpenAlex design signal',
+            language: 'en',
+            publication_date: '2026-07-20',
+            abstract_inverted_index: { Evidence: [0] },
+            open_access: { is_oa: false },
+            primary_location: { landing_page_url: 'https://example.org/w1', source: { display_name: 'Journal' } }
+          }
+        ]
+      })
+    ],
+    [
+      sources[1].url,
+      '<feed><entry><id>https://arxiv.org/abs/2607.1</id><title>arXiv design signal</title><summary>Evidence</summary><published>2026-07-20T00:00:00Z</published></entry></feed>'
+    ],
+    [
+      sources[2].url,
+      '<rss><channel><item><guid>rss-1</guid><title>RSS signal</title><link>https://feed.example.com/rss-1</link><description>Evidence</description></item></channel></rss>'
+    ],
+    [
+      sources[3].url,
+      '<feed><entry><id>atom-1</id><title>Atom signal</title><summary>Evidence</summary><link href="https://feed.example.com/atom-1"/></entry></feed>'
+    ],
+    [
+      sources[4].url,
+      '<html><head><title>Page signal</title><meta name="description" content="Evidence"><meta property="og:url" content="https://feed.example.com/page"></head></html>'
+    ]
+  ]);
+  const result = await collectLive(config, {
+    date: '2026-07-28',
+    sources,
+    transport: async (url) => ({
+      status: 200,
+      headers: { 'content-type': url.endsWith('works') ? 'application/json' : 'application/xml' },
+      bytes: Buffer.from(bodies.get(url)),
+      dnsAddress: '8.8.8.8',
+      attempts: 1
+    }),
+    now: () => new Date('2026-07-28T15:50:00Z')
+  });
+  assert.deepEqual(result.sourceHealth.map((item) => item.status), ['healthy', 'healthy', 'healthy', 'healthy', 'healthy']);
+  assert.deepEqual(result.candidates.map((item) => item.provenance.adapter), ['openalex', 'arxiv', 'rss', 'atom', 'page']);
+});
+
+test('live source failures fail closed with degraded health and rejection audit', async () => {
+  const config = { ...fixtureConfig(await temporaryDirectory()), mode: 'live' };
+  for (const code of ['host_not_allowed', 'request_timeout', 'response_too_large']) {
+    const error = new Error(code);
+    error.code = code;
+    const result = await collectLive(config, {
+      date: '2026-07-28',
+      sources: [{ id: code, kind: 'rss', category: 'frontier', name: code, url: 'https://feed.example.com/rss' }],
+      transport: async () => {
+        throw error;
+      },
+      now: () => new Date('2026-07-28T15:50:00Z')
+    });
+    assert.equal(result.candidates.length, 0);
+    assert.equal(result.sourceHealth[0].status, 'degraded');
+    assert.equal(result.rejected[0].reason, 'source_unavailable');
+    assert.equal(result.rejected[0].detail, code);
+  }
+});
+
 test('OA PDF handler rejects closed records and verifies PDF signature', async () => {
   const config = { ...fixtureConfig(await temporaryDirectory()), mode: 'live' };
   await assert.rejects(downloadOpenAccessPdf({ access: { openAccess: false } }, config), { code: 'pdf_open_access_required' });
+  await assert.rejects(
+    downloadOpenAccessPdf({ access: { openAccess: true, pdfUrl: 'https://arxiv.org/pdf/example' }, license: { status: 'unknown' } }, config),
+    { code: 'pdf_license_required' }
+  );
   const item = { access: { openAccess: true, pdfUrl: 'https://arxiv.org/pdf/example', status: 'open_access' }, license: { status: 'repository_terms' } };
   const result = await downloadOpenAccessPdf(item, config, {
     transport: async () => ({
