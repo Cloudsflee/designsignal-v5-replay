@@ -14,6 +14,8 @@ test('HTTP server renders escaped dashboard, JSON APIs, health, assets, and secu
   t.after(() => fs.rm(root, { recursive: true, force: true }));
   const report = await fixtureReport(root);
   report.items[0].title.zh = '<script>alert(1)</script>';
+  report.items[0].citations[0].url = 'javascript:alert(3)';
+  report.items.find((item) => item.category === 'ui').image.url = 'javascript:alert(2)';
   const service = await startServer({ ...fixtureConfig(root), host: '127.0.0.1', port: 0 }, { fallbackReport: report });
   t.after(() => service.close());
   const health = await fetch(`${service.url}/healthz`);
@@ -22,10 +24,13 @@ test('HTTP server renders escaped dashboard, JSON APIs, health, assets, and secu
   assert.equal(health.headers.get('x-content-type-options'), 'nosniff');
   assert.match(health.headers.get('content-security-policy'), /frame-ancestors 'none'/);
   const latest = await fetch(`${service.url}/api/reports/latest`);
-  assert.equal((await latest.json()).items.length, 6);
+  const latestText = await latest.text();
+  assert.equal(latestText.includes('<script>alert(1)</script>'), false);
+  assert.equal(JSON.parse(latestText).items.length, 6);
   const page = await (await fetch(service.url)).text();
   assert.equal(page.includes('<script>alert(1)</script>'), false);
   assert.equal(page.includes('&lt;script&gt;alert(1)&lt;/script&gt;'), true);
+  assert.equal(page.includes('javascript:alert'), false);
   assert.match(page, /product-signal\.png/);
   const image = await fetch(`${service.url}/assets/product-signal.png`);
   assert.equal(image.headers.get('content-type'), 'image/png');

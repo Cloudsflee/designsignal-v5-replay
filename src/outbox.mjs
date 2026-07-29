@@ -18,6 +18,7 @@ export async function enqueueReportDeliveries(dataDir, report, environment = pro
   const messages = [];
   for (const channel of [...new Set(requested)]) {
     const id = deterministicId('msg', report.id, channel);
+    const createdAt = new Date(report.generatedAt || Date.now()).toISOString();
     const message = {
       schemaVersion: 'designsignal.outbox.v1',
       id,
@@ -29,8 +30,8 @@ export async function enqueueReportDeliveries(dataDir, report, environment = pro
       status: 'pending',
       attempts: 0,
       lastError: environment[CHANNELS[channel].secretEnv] ? null : { code: 'push_secret_missing' },
-      nextAttemptAt: new Date().toISOString(),
-      createdAt: new Date().toISOString(),
+      nextAttemptAt: createdAt,
+      createdAt,
       sentAt: null
     };
     await atomicWrite(messagePath(dataDir, message), `${stableStringify(message, 2)}\n`);
