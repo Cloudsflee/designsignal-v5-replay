@@ -16,6 +16,12 @@ Validate with:
 ```powershell
 node .\bin\designsignal.mjs doctor
 node .\bin\designsignal.mjs daily --fixture --dry-run --date 2026-07-28
+node .\bin\designsignal.mjs outbox --data-dir <absolute-data-directory>
 ```
 
 Review Task Scheduler history, `data\manifest.jsonl`, and `data\outbox` after the first live run.
+If delivery is pending because a webhook secret was missing or unavailable, restore the task account environment variable and run:
+
+```powershell
+node .\bin\designsignal.mjs outbox --retry --data-dir <absolute-data-directory>
+```

@@ -80,7 +80,7 @@ export async function doctor(config) {
     { id: 'node', ok: major >= 24, detail: `Node ${process.versions.node}` },
     { id: 'runtime_dependencies', ok: true, detail: '0 production dependencies' },
     { id: 'syllabus', ok: SYLLABUS.edition === 'ZJU-IDI-2027', detail: SYLLABUS_SNAPSHOT_SHA256 },
-    { id: 'commands', ok: true, detail: 'collect,daily,serve,doctor,schedule' },
+    { id: 'commands', ok: true, detail: 'collect,daily,serve,doctor,outbox,schedule' },
     { id: 'allowed_hosts', ok: config.allowedHosts.length > 0, detail: `${config.allowedHosts.length} hosts` },
     {
       id: 'model_credentials',

@@ -24,6 +24,7 @@ collect   collect, validate, deduplicate, and select signals
 daily     create the full report and, unless dry-run, persist and deliver it
 serve     run the Dashboard and JSON API
 doctor    verify runtime, syllabus, commands, source policy, and optional config
+outbox    show durable delivery state; --retry processes due pending messages
 schedule  wait for and run each 23:50 Asia/Shanghai boundary
 ```
 
@@ -39,6 +40,7 @@ Common options:
 --codex-config PATH        explicit Codex config read in memory
 --model NAME               Responses-compatible model
 --no-push                  skip outbox creation for this run
+--retry                    with outbox, process due pending delivery records
 ```
 
 ## Live pipeline
@@ -61,7 +63,7 @@ The analysis path supports an OpenAI-compatible Responses API. Configure environ
 
 ## Delivery
 
-The durable outbox supports generic JSON webhooks, Feishu, and WeCom. Outbox files store payloads and an environment-variable name such as `FEISHU_WEBHOOK_URL`; they never store the endpoint value. Missing credentials leave a pending record while the report remains available.
+The durable outbox supports generic JSON webhooks, Feishu, and WeCom. Outbox files store payloads and an environment-variable name such as `FEISHU_WEBHOOK_URL`; they never store the endpoint value. Missing credentials leave a pending record while the report remains available. After restoring credentials, run `node ./bin/designsignal.mjs outbox --retry` to process due pending records without regenerating the daily report.
 
 ## HTTP API
 

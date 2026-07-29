@@ -1,10 +1,41 @@
 import assert from 'node:assert/strict';
+import { execFile } from 'node:child_process';
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import test from 'node:test';
+import { promisify } from 'node:util';
 import { enqueueReportDeliveries, outboxStatus, processOutbox } from '../src/outbox.mjs';
 import { nextShanghaiRun, scheduleDelay } from '../src/scheduler.mjs';
 import { fixtureReport, temporaryDirectory } from './helpers.mjs';
+
+const execFileAsync = promisify(execFile);
+
+test('outbox creates generic, Feishu, and WeCom messages without endpoint values', async (t) => {
+  const root = await temporaryDirectory();
+  t.after(() => fs.rm(root, { recursive: true, force: true }));
+  const report = await fixtureReport(root);
+  const messages = await enqueueReportDeliveries(root, report, {
+    DESIGNSIGNAL_PUSH_CHANNELS: 'generic,feishu,wecom,generic',
+    DESIGNSIGNAL_WEBHOOK_URL: 'https://hooks.example.com/generic-secret',
+    FEISHU_WEBHOOK_URL: 'https://open.feishu.cn/open-apis/bot/v2/hook/feishu-secret',
+    WECOM_WEBHOOK_URL: 'https://qyapi.weixin.qq.com/cgi-bin/webhook/send?key=wecom-secret'
+  });
+  assert.deepEqual(
+    messages.map((message) => message.channel),
+    ['generic', 'feishu', 'wecom']
+  );
+  assert.equal(messages[0].payload.event, 'designsignal.daily.ready');
+  assert.equal(messages[0].payload.report.integritySha256, report.integrity.contentSha256);
+  assert.equal(messages[1].payload.msg_type, 'text');
+  assert.equal(messages[2].payload.msgtype, 'text');
+  const raw = await Promise.all(
+    (await fs.readdir(path.join(root, 'outbox'))).map((name) => fs.readFile(path.join(root, 'outbox', name), 'utf8'))
+  );
+  assert.equal(raw.join('\n').includes('generic-secret'), false);
+  assert.equal(raw.join('\n').includes('feishu-secret'), false);
+  assert.equal(raw.join('\n').includes('wecom-secret'), false);
+  assert.equal((await outboxStatus(root)).pending, 3);
+});
 
 test('missing push secret preserves a pending durable message without persisting credentials', async (t) => {
   const root = await temporaryDirectory();
@@ -64,6 +95,26 @@ test('failed push is retried with bounded backoff and redacted error', async (t)
   assert.equal(message.attempts, 1);
   assert.equal(message.lastError.message.includes('supersecret123'), false);
   assert.ok(new Date(message.nextAttemptAt) > new Date('2026-07-28T16:00:00Z'));
+});
+
+test('CLI outbox retry processes due pending messages for operators', async (t) => {
+  const root = await temporaryDirectory();
+  t.after(() => fs.rm(root, { recursive: true, force: true }));
+  const report = await fixtureReport(root);
+  await enqueueReportDeliveries(root, report, { DESIGNSIGNAL_PUSH_CHANNELS: 'generic' });
+  const executable = path.resolve('bin', 'designsignal.mjs');
+  const { stdout, stderr } = await execFileAsync(
+    process.execPath,
+    [executable, 'outbox', '--retry', '--data-dir', root],
+    { cwd: path.resolve('.'), timeout: 10_000 }
+  );
+  assert.equal(stderr, '');
+  const value = JSON.parse(stdout);
+  assert.equal(value.schemaVersion, 'designsignal.outbox-status.v1');
+  assert.equal(value.retry, true);
+  assert.equal(value.processedCount, 1);
+  assert.equal(value.pending, 1);
+  assert.equal(value.messages[0].lastError.code, 'push_secret_missing');
 });
 
 test('scheduler computes 23:50 Asia/Shanghai before and after the boundary', () => {
