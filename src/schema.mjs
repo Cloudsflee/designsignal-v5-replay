@@ -1,6 +1,39 @@
 import { SYLLABUS } from './syllabus.mjs';
+import { SYLLABUS_SNAPSHOT_SHA256 } from './syllabus.mjs';
 
 const BILINGUAL_FIELDS = ['title', 'summary', 'evidence', 'method', 'novelty', 'limits', 'whyLearn', 'studyAction'];
+const BILINGUAL_JSON_SCHEMA = Object.freeze({
+  type: 'object',
+  additionalProperties: false,
+  required: ['zh', 'en'],
+  properties: {
+    zh: { type: 'string', minLength: 1 },
+    en: { type: 'string', minLength: 1 }
+  }
+});
+
+export const RESPONSES_ANALYSIS_JSON_SCHEMA = Object.freeze({
+  type: 'object',
+  additionalProperties: false,
+  required: [...BILINGUAL_FIELDS, 'mappings', 'confidence'],
+  properties: {
+    ...Object.fromEntries(BILINGUAL_FIELDS.map((field) => [field, BILINGUAL_JSON_SCHEMA])),
+    mappings: {
+      type: 'array',
+      minItems: 1,
+      items: {
+        type: 'object',
+        additionalProperties: false,
+        required: ['reason', 'confidence'],
+        properties: {
+          reason: BILINGUAL_JSON_SCHEMA,
+          confidence: { type: 'number', minimum: 0.05, maximum: 0.95 }
+        }
+      }
+    },
+    confidence: { type: 'number', minimum: 0.05, maximum: 0.95 }
+  }
+});
 
 export function validateAnalysis(item) {
   const errors = [];
@@ -18,10 +51,15 @@ export function validateAnalysis(item) {
     const section = SYLLABUS.subjects[mapping.subject]?.sections.find((entry) => entry.id === mapping.sectionId);
     if (
       mapping.syllabusEdition !== SYLLABUS.edition ||
+      mapping.syllabusSnapshotSha256 !== SYLLABUS_SNAPSHOT_SHA256 ||
+      mapping.mappingVersion !== `${SYLLABUS.edition}@${SYLLABUS_SNAPSHOT_SHA256.slice(0, 12)}` ||
       !section ||
       !section.topics.includes(mapping.topic) ||
       !mapping.reason?.zh ||
-      !mapping.reason?.en
+      !mapping.reason?.en ||
+      !Number.isFinite(mapping.confidence) ||
+      mapping.confidence <= 0 ||
+      mapping.confidence >= 1
     )
       errors.push('analysis_mapping_invalid');
   }
@@ -45,11 +83,25 @@ export function validateReport(report) {
   for (const hypothesis of report?.hypotheses || []) {
     if (!hypothesis.claim?.zh || !hypothesis.claim?.en) errors.push('hypothesis_bilingual_claim_required');
     if (!hypothesis.evidence?.length || !hypothesis.counterevidence?.length) errors.push('hypothesis_evidence_balance_required');
+    for (const evidence of hypothesis.evidence || [])
+      if (!Number.isFinite(evidence.confidence) || evidence.confidence <= 0 || evidence.confidence >= 1)
+        errors.push('hypothesis_evidence_confidence_invalid');
+    for (const evidence of hypothesis.counterevidence || [])
+      if (!Number.isFinite(evidence.confidence) || evidence.confidence <= 0 || evidence.confidence >= 1)
+        errors.push('hypothesis_counterevidence_confidence_invalid');
     if (!Number.isFinite(hypothesis.confidence) || hypothesis.confidence <= 0 || hypothesis.confidence >= 1)
       errors.push('hypothesis_confidence_invalid');
   }
   const exercise = report?.coreExercise;
-  if (!exercise?.prompt?.zh || !exercise?.prompt?.en || !exercise?.deliverables?.length || !exercise?.rubric?.length)
+  if (
+    !exercise?.prompt?.zh ||
+    !exercise?.prompt?.en ||
+    !exercise?.deliverables?.length ||
+    !exercise?.rubric?.length ||
+    !exercise?.phases?.length ||
+    !exercise?.constraints?.length ||
+    !exercise?.reviewChecklist?.length
+  )
     errors.push('core_exercise_incomplete');
   if ((exercise?.rubric || []).reduce((sum, item) => sum + Number(item.points || 0), 0) !== 100)
     errors.push('core_exercise_rubric_points_invalid');
