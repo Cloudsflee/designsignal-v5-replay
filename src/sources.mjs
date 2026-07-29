@@ -319,6 +319,7 @@ function verifiedImageMime(bytes, declared) {
 
 export async function downloadOpenAccessPdf(item, config, { transport = requestBytes } = {}) {
   if (!item?.access?.openAccess || !item.access.pdfUrl) throw sourceError('pdf_open_access_required');
+  if (!pdfLicenseAllowsDownload(item.license)) throw sourceError('pdf_license_required');
   const response = await transport(item.access.pdfUrl, {
     allowedHosts: config.allowedHosts,
     timeoutMs: config.timeoutMs,
@@ -341,6 +342,15 @@ export async function downloadOpenAccessPdf(item, config, { transport = requestB
       licenseStatus: item.license?.status || 'unknown'
     }
   };
+}
+
+function pdfLicenseAllowsDownload(license) {
+  const status = cleanText(license?.status, 100).toLowerCase();
+  const name = cleanText(license?.name, 200).toLowerCase();
+  if (status === 'repository_terms') return true;
+  if (['public_domain', 'open_license'].includes(status)) return true;
+  if (status !== 'declared') return false;
+  return /^(cc0|cc[-\s]?by|creative commons)/i.test(name);
 }
 
 function parseSource(source, bytes, fetchedAt) {

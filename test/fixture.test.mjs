@@ -40,11 +40,16 @@ test('daily report has complete bilingual analysis, provenance, mappings, balanc
     }
     assert.match(item.citations[0].contentSha256, /^[a-f0-9]{64}$/);
     assert.equal(item.mappings.every((mapping) => mapping.syllabusEdition === 'ZJU-IDI-2027'), true);
+    assert.equal(item.mappings.every((mapping) => mapping.mappingVersion && mapping.syllabusSnapshotSha256), true);
   }
   assert.equal(report.hypotheses.length, 3);
   assert.equal(report.hypotheses.every((item) => item.evidence.length && item.counterevidence.length), true);
+  assert.equal(report.hypotheses.every((item) => item.evidence.every((entry) => entry.confidence > 0)), true);
+  assert.equal(report.hypotheses.every((item) => item.counterevidence.every((entry) => entry.confidence > 0)), true);
   assert.equal(report.coreExercise.timeboxMinutes, 150);
   assert.equal(report.coreExercise.rubric.reduce((sum, item) => sum + item.points, 0), 100);
+  assert.ok(report.coreExercise.constraints.length >= 3);
+  assert.ok(report.coreExercise.reviewChecklist.length >= 3);
   assert.ok(report.coreExercise.evidenceLinks.length >= 3);
 });
 

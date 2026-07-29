@@ -121,9 +121,14 @@ export function renderDashboard(report, { outbox = null } = {}) {
 
 function signalCard(item, index) {
   const mappings = item.mappings.map((mapping) => `<span class="mapping-chip"><b>${escapeHtml(mapping.subject)}</b>${escapeHtml(mapping.topic)}</span>`).join('');
-  const image = item.image?.url
-    ? `<figure><img src="${escapeHtml(item.image.url)}" alt="${escapeHtml(item.image.altZh || item.title.zh)}" width="960" height="600" loading="lazy"><figcaption>${escapeHtml(item.image.license || '')}</figcaption></figure>`
+  const imageUrl = safeSameOriginImage(item.image?.url);
+  const image = imageUrl
+    ? `<figure><img src="${escapeHtml(imageUrl)}" alt="${escapeHtml(item.image.altZh || item.title.zh)}" width="960" height="600" loading="lazy"><figcaption>${escapeHtml(item.image.license || '')}</figcaption></figure>`
     : '';
+  const sourceHref = safeExternalHref(item.citations[0].url);
+  const sourceLink = sourceHref
+    ? `<a href="${escapeHtml(sourceHref)}" target="_blank" rel="noreferrer">${escapeHtml(item.source.name)} ↗</a>`
+    : `<span class="source-muted">${escapeHtml(item.source.name)}</span>`;
   return `<article class="signal-card" data-category="${escapeHtml(item.category)}" data-language="${escapeHtml(item.language)}" data-confidence="${Math.round(item.confidence * 100)}">
     ${image}
     <div class="signal-body">
@@ -132,9 +137,25 @@ function signalCard(item, index) {
       <p class="title-en">${escapeHtml(item.title.en)}</p>
       <p class="evidence">${escapeHtml(item.evidence.zh)}</p>
       <details><summary>证据与边界</summary><div class="detail-grid"><div><h4>Method</h4><p>${escapeHtml(item.method.zh)}</p></div><div><h4>Limits</h4><p>${escapeHtml(item.limits.zh)}</p></div><div><h4>Why learn</h4><p>${escapeHtml(item.whyLearn.zh)}</p></div><div><h4>Study action</h4><p>${escapeHtml(item.studyAction.zh)}</p></div></div></details>
-      <div class="signal-foot"><div class="mapping-chips">${mappings}</div><a href="${escapeHtml(item.citations[0].url)}" target="_blank" rel="noreferrer">${escapeHtml(item.source.name)} ↗</a></div>
+      <div class="signal-foot"><div class="mapping-chips">${mappings}</div>${sourceLink}</div>
     </div>
   </article>`;
+}
+
+function safeSameOriginImage(value) {
+  const text = String(value || '');
+  if (/^\/assets\/[-\w.]+\.png$/.test(text)) return text;
+  if (/^\/api\/media\/[a-f0-9]{64}$/.test(text)) return text;
+  return null;
+}
+
+function safeExternalHref(value) {
+  try {
+    const url = new URL(String(value || ''));
+    return url.protocol === 'https:' ? url.href : null;
+  } catch {
+    return null;
+  }
 }
 
 function mappingSummary(report) {

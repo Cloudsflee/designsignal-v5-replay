@@ -111,6 +111,8 @@ export function syllabusTopic(subject, sectionId, topic) {
   if (!section || !section.topics.includes(topic)) throw new Error('syllabus_mapping_invalid');
   return {
     syllabusEdition: SYLLABUS.edition,
+    syllabusSnapshotSha256: SYLLABUS_SNAPSHOT_SHA256,
+    mappingVersion: `${SYLLABUS.edition}@${SYLLABUS_SNAPSHOT_SHA256.slice(0, 12)}`,
     subject: String(subject),
     sectionId,
     sectionTitleZh: section.titleZh,

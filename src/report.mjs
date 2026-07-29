@@ -54,6 +54,7 @@ function buildHypotheses(items, sourceHealth) {
       counterevidence: [
         {
           type: 'coverage_limit',
+          confidence: 0.74,
           detailZh: `本轮仅有 ${frontier.length} 条前沿信号，不能推出考试命题趋势。`,
           detailEn: `This run contains only ${frontier.length} frontier signals and cannot establish an exam-setting trend.`
         }
@@ -73,6 +74,7 @@ function buildHypotheses(items, sourceHealth) {
       counterevidence: [
         {
           type: 'transfer_limit',
+          confidence: 0.7,
           detailZh: '产品与界面媒体案例不等同于 902 评分标准，仍需以大纲和历年要求校准。',
           detailEn: 'Product and interface media cases are not equivalent to 902 scoring criteria and still require syllabus calibration.'
         }
@@ -92,6 +94,7 @@ function buildHypotheses(items, sourceHealth) {
       counterevidence: [
         {
           type: 'source_limit',
+          confidence: degraded.length ? 0.76 : 0.68,
           detailZh: degraded.length
             ? `${degraded.length} 个来源降级，当前样本的机构与语言覆盖不完整。`
             : '单日论文样本很小，方法偏好不能直接外推到正式考试。',
@@ -114,6 +117,8 @@ function evidenceRef(item) {
     citationUrl: item.citations[0].url,
     claimZh: item.evidence.zh,
     claimEn: item.evidence.en,
+    confidence: item.confidence,
+    mappingConfidence: Math.max(...item.mappings.map((mapping) => mapping.confidence)),
     contentSha256: item.citations[0].contentSha256
   };
 }
@@ -129,11 +134,31 @@ function buildCoreExercise(items, date) {
     },
     timeboxMinutes: 150,
     phases: [
-      { minutes: 20, zh: '证据摘录与问题重构', en: 'Evidence extraction and problem reframing' },
-      { minutes: 35, zh: '用户、约束与系统链', en: 'Users, constraints, and system chain' },
-      { minutes: 45, zh: '主方案、fallback 与最弱环', en: 'Primary path, fallback, and weakest link' },
-      { minutes: 30, zh: '指标、数据与伦理', en: 'Metrics, data, and ethics' },
-      { minutes: 20, zh: 'A3 复核与删减', en: 'A3 review and reduction' }
+      {
+        minutes: 20,
+        zh: '证据摘录与问题重构：从今日信号中标出事实、解释和未证实推断。',
+        en: 'Evidence extraction and problem reframing: mark facts, interpretations, and unverified inferences from today\'s signals.'
+      },
+      {
+        minutes: 35,
+        zh: '用户、约束与系统链：列出三类用户、关键场景约束和端到端信息流。',
+        en: 'Users, constraints, and system chain: list three user groups, key scenario constraints, and the end-to-end information flow.'
+      },
+      {
+        minutes: 45,
+        zh: '主方案、fallback 与最弱环：画出正常链路、失败触发器、降级方案和恢复责任人。',
+        en: 'Primary path, fallback, and weakest link: draw the normal path, failure triggers, fallback, and recovery owner.'
+      },
+      {
+        minutes: 30,
+        zh: '指标、数据与伦理：定义采集方法、阈值、停止条件和不可接受风险。',
+        en: 'Metrics, data, and ethics: define acquisition methods, thresholds, stop conditions, and unacceptable risks.'
+      },
+      {
+        minutes: 20,
+        zh: 'A3 复核与删减：删除不能被证据或指标支撑的功能。',
+        en: 'A3 review and reduction: remove features unsupported by evidence or metrics.'
+      }
     ],
     prompt: {
       zh: '为网络不稳定、设备性能差异大且包含视障用户的公共办事场景设计 AI 辅助服务。必须引用今日至少三条信号，重构问题，给出端到端系统链、离线 fallback、最弱环、数据/指标和伦理边界。',
@@ -145,6 +170,11 @@ function buildCoreExercise(items, date) {
       '主链路、fallback 与失败恢复 / Primary chain, fallback, and recovery',
       '三个指标及数据获取方法 / Three metrics and data acquisition methods',
       '伦理风险与停止条件 / Ethical risks and stop conditions'
+    ],
+    constraints: [
+      { zh: '必须使用至少三条今日信号，并为每条写出证据句、适用边界和反证。', en: 'Use at least three signals from today and write the evidence sentence, boundary, and counterevidence for each.' },
+      { zh: '不得把模型输出当作最终决策；必须保留人工复核点和日志。', en: 'Do not treat model output as the final decision; keep a human review point and logs.' },
+      { zh: '必须包含弱网、低端设备和无障碍访问的降级路径。', en: 'Include degradation paths for weak networks, low-end devices, and accessible access.' }
     ],
     rubric: [
       { key: 'evidence', labelZh: '证据质量与引用', labelEn: 'Evidence and citations', points: 20 },
@@ -159,6 +189,11 @@ function buildCoreExercise(items, date) {
       'Input -> model/tool -> validation -> human decision -> feedback',
       'Failure trigger -> fallback -> recovery owner',
       'Metric -> data source -> threshold -> stop condition'
+    ],
+    reviewChecklist: [
+      { key: 'claim_trace', zh: '每个主张是否能追溯到来源、引用或明确假设？', en: 'Can every claim be traced to a source, citation, or explicit assumption?' },
+      { key: 'failure_path', zh: '最弱环失败后，用户是否仍能完成关键任务？', en: 'After the weakest link fails, can the user still complete the critical task?' },
+      { key: 'metric_action', zh: '每个指标是否有数据来源、阈值和触发动作？', en: 'Does every metric have a data source, threshold, and triggered action?' }
     ],
     evidenceLinks
   };
@@ -217,8 +252,8 @@ export function renderReportMarkdown(report) {
       hypothesis.claim.en,
       '',
       `- 置信度 / Confidence: ${hypothesis.confidence.toFixed(2)}`,
-      `- 证据 / Evidence: ${hypothesis.evidence.map((item) => item.itemId).join(', ')}`,
-      `- 反证 / Counterevidence: ${hypothesis.counterevidence.map((item) => item.detailZh).join('；')}`,
+      `- 证据 / Evidence: ${hypothesis.evidence.map((item) => `${item.itemId} (${item.confidence.toFixed(2)})`).join(', ')}`,
+      `- 反证 / Counterevidence: ${hypothesis.counterevidence.map((item) => `${item.detailZh} (${item.confidence.toFixed(2)})`).join('；')}`,
       ''
     );
   lines.push(
@@ -234,6 +269,10 @@ export function renderReportMarkdown(report) {
     '',
     report.coreExercise.prompt.en,
     '',
+    '### Constraints',
+    '',
+    ...report.coreExercise.constraints.map((item) => `- ${item.zh} / ${item.en}`),
+    '',
     '### Deliverables',
     '',
     ...report.coreExercise.deliverables.map((item) => `- ${item}`),
@@ -241,6 +280,10 @@ export function renderReportMarkdown(report) {
     '### Rubric',
     '',
     ...report.coreExercise.rubric.map((item) => `- ${item.labelZh} / ${item.labelEn}: ${item.points}`),
+    '',
+    '### Review Checklist',
+    '',
+    ...report.coreExercise.reviewChecklist.map((item) => `- ${item.zh} / ${item.en}`),
     '',
     `---`,
     `Integrity SHA-256: ${report.integrity.contentSha256}`,

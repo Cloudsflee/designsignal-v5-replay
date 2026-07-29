@@ -78,6 +78,7 @@ summary { padding: 10px 0; color: var(--green); font-size: 13px; cursor: pointer
 .mapping-chip { padding: 4px 6px; border: 1px solid var(--line); color: var(--muted); font-size: 10px; }
 .mapping-chip b { margin-right: 4px; color: var(--ink); }
 .signal-foot a { flex: 0 0 auto; font-size: 12px; }
+.source-muted { flex: 0 0 auto; color: var(--muted); font-size: 12px; }
 .empty-filter { padding: 30px; color: var(--muted); text-align: center; }
 .syllabus-band, .hypothesis-section, .exercise-section, .operations-band, .feedback-band { padding: 42px clamp(24px, 4vw, 64px); border-bottom: 1px solid var(--line); }
 .syllabus-band { background: #f7faf8; }

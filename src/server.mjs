@@ -156,13 +156,25 @@ function setSecurityHeaders(response) {
 }
 
 function json(response, status, value) {
-  const body = Buffer.from(`${JSON.stringify(value)}\n`);
+  const body = Buffer.from(`${safeJsonStringify(value)}\n`);
   response.writeHead(status, {
     'content-type': 'application/json; charset=utf-8',
     'content-length': body.length,
     'cache-control': 'no-store'
   });
   response.end(body);
+}
+
+function safeJsonStringify(value) {
+  return JSON.stringify(value).replace(/[<>&\u2028\u2029]/g, (character) => {
+    return {
+      '<': '\\u003c',
+      '>': '\\u003e',
+      '&': '\\u0026',
+      '\u2028': '\\u2028',
+      '\u2029': '\\u2029'
+    }[character];
+  });
 }
 
 function html(response, status, value) {

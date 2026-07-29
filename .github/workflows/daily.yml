@@ -53,6 +53,9 @@ jobs:
           else
             node ./bin/designsignal.mjs daily --fixture --date "$DATE" --no-push
           fi
+      - name: Inspect durable outbox
+        if: always()
+        run: node ./bin/designsignal.mjs outbox
       - name: Upload report and audit trail
         if: always()
         uses: actions/upload-artifact@v4

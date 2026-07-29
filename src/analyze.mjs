@@ -1,6 +1,6 @@
 import fs from 'node:fs/promises';
 import { requestBytes } from './security.mjs';
-import { assertAnalysis } from './schema.mjs';
+import { assertAnalysis, RESPONSES_ANALYSIS_JSON_SCHEMA } from './schema.mjs';
 import { syllabusTopic } from './syllabus.mjs';
 import { clamp, cleanText, deterministicId, publicError } from './util.mjs';
 
@@ -142,8 +142,8 @@ async function modelAnalysis(item, config, transport, now) {
   const prompt = [
     'Return only JSON. Analyze the supplied public-source design signal for a ZJU 337/902 learner.',
     'Every text field must contain both zh and en. Do not invent evidence, sample sizes, outcomes, or citations.',
-    'Required keys: title, summary, evidence, method, novelty, limits, whyLearn, studyAction, mappings, confidence.',
-    'Each bilingual field is {"zh":"...","en":"..."}. mappings uses the supplied syllabus mappings and adds only bilingual reason.',
+    'Required keys are enforced by the supplied JSON schema.',
+    'Each bilingual field is {"zh":"...","en":"..."}. mappings must stay aligned by index with the supplied syllabus mappings and add only bilingual reason plus confidence.',
     JSON.stringify({
       title: item.title,
       abstract: item.abstract,
@@ -157,6 +157,14 @@ async function modelAnalysis(item, config, transport, now) {
   const body = JSON.stringify({
     model: config.model,
     input: prompt,
+    text: {
+      format: {
+        type: 'json_schema',
+        name: 'designsignal_analysis',
+        strict: true,
+        schema: RESPONSES_ANALYSIS_JSON_SCHEMA
+      }
+    },
     temperature: 0.1,
     max_output_tokens: 2500
   });
@@ -185,7 +193,11 @@ async function modelAnalysis(item, config, transport, now) {
       ])
     ),
     mappings: enrichMappings(
-      fallback.mappings.map((mapping, index) => ({ ...mapping, reason: completeBilingual(parsed.mappings?.[index]?.reason, mapping.reason.zh, mapping.reason.en) }))
+      fallback.mappings.map((mapping, index) => ({
+        ...mapping,
+        reason: completeBilingual(parsed.mappings?.[index]?.reason, mapping.reason.zh, mapping.reason.en),
+        confidence: parsed.mappings?.[index]?.confidence
+      }))
     ),
     confidence: clamp(parsed.confidence, 0.05, 0.95),
     analysis: {
@@ -216,7 +228,7 @@ function inferMappings(item) {
 function enrichMappings(mappings) {
   return mappings.map((mapping) => ({
     ...mapping,
-    confidence: 0.68,
+    confidence: Number.isFinite(Number(mapping.confidence)) ? clamp(mapping.confidence, 0.05, 0.95) : 0.68,
     reason: mapping.reason || {
       zh: `该信号的证据或方法可直接用于练习“${mapping.topic}”中的判断与表达。`,
       en: `The signal's evidence or method directly supports judgment and articulation practice for “${mapping.topic}”.`
