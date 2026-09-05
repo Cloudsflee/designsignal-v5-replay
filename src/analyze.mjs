@@ -41,12 +41,12 @@ export async function analyzeSignals(items, config, options = {}) {
   return analyses;
 }
 
-export async function analyzeSignal(item, config, { transport = requestBytes, now = () => new Date() } = {}) {
+export async function analyzeSignal(item, config, { transport = requestBytes, now = () => new Date(), signal = null } = {}) {
   if (config.model && config.apiKey) {
     let error;
     for (let attempt = 1; attempt <= 2; attempt += 1) {
       try {
-        const modeled = await modelAnalysis(item, config, transport, now);
+        const modeled = await modelAnalysis(item, config, transport, now, signal);
         return assertAnalysis(modeled);
       } catch (caught) {
         error = caught;
@@ -136,7 +136,7 @@ export function deterministicAnalysis(item, now = () => new Date()) {
   };
 }
 
-async function modelAnalysis(item, config, transport, now) {
+async function modelAnalysis(item, config, transport, now, signal) {
   const endpoint = new URL('responses', `${config.baseUrl.replace(/\/$/, '')}/`).href;
   const host = new URL(endpoint).hostname;
   const prompt = [
@@ -175,7 +175,8 @@ async function modelAnalysis(item, config, transport, now) {
     retries: config.retries,
     method: 'POST',
     headers: { authorization: `Bearer ${config.apiKey}`, 'content-type': 'application/json', accept: 'application/json' },
-    body
+    body,
+    signal
   });
   if (response.status < 200 || response.status >= 300) throw modelError('model_http_error');
   const envelope = JSON.parse(response.bytes.toString('utf8'));
@@ -207,7 +208,7 @@ async function modelAnalysis(item, config, transport, now) {
         status: 'completed',
         responseId: cleanText(envelope.id, 300) || null,
         generatedAt: now().toISOString(),
-        authoritative: false
+        authoritative: true
       }
     }
   };

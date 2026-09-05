@@ -1,0 +1,27 @@
+{
+  "schemaVersion": "designsignal.aiws-brief.v1",
+  "name": "DesignSignal V6 Reliability Replay",
+  "baselineCommit": "5833494e6fdc16201cc10ec8776578892e8d85b4",
+  "frozenAiwsCommit": "5f2be38845d36236637c7f22a1b4df5611a6175b",
+  "goal": "Close content, source, model, delivery, integrity, SLO, evidence, and rollback reliability for the fixed ZJU 337/902 DesignSignal product.",
+  "nonGoals": [
+    "general intelligence platform",
+    "AIWS code change during Round 1",
+    "V2 state migration",
+    "production-volume mutation",
+    "historical report rewrite"
+  ],
+  "liveAcceptance": {
+    "quota": { "paper": 2, "product": 1, "ui": 1, "frontier": 2 },
+    "verifiedLocalVisuals": 2,
+    "authoritativeModelItems": 6,
+    "requiredSourcesDegraded": 0,
+    "requiredChannel": "feishu",
+    "sent": 1,
+    "pending": 0,
+    "failed": 0,
+    "deadlineMs": 1200000
+  },
+  "proposalReviewRequired": true,
+  "humanReviewRequiredBeforeReady": true
+}

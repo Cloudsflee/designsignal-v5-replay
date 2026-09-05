@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<feed xmlns="http://www.w3.org/2005/Atom">
+  <entry>
+    <id>fixture-atom-1</id>
+    <title>Frontier reliability evidence</title>
+    <summary>Sanitized Atom structure for deterministic parser replay.</summary>
+    <updated>2026-08-20T00:00:00Z</updated>
+    <link href="https://publisher.example.org/frontier/reliability" rel="alternate" />
+  </entry>
+</feed>

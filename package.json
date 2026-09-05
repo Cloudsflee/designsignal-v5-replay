@@ -1,7 +1,7 @@
 {
   "name": "designsignal-v5-replay",
-  "version": "5.0.0",
-  "description": "Auditable daily design intelligence and ZJU 337/902 study signal system",
+  "version": "6.0.0",
+  "description": "Reliable, auditable daily design intelligence and ZJU 337/902 study signal system",
   "type": "module",
   "private": false,
   "bin": {
@@ -12,13 +12,24 @@
   },
   "scripts": {
     "test": "node --test --test-reporter=spec",
-    "test:syntax": "node --check ./bin/designsignal.mjs",
-    "verify": "npm run test:syntax && npm test && npm run doctor && npm run collect:fixture",
+    "test:syntax": "node ./scripts/syntax.mjs",
+    "test:performance": "node ./scripts/performance.mjs",
+    "test:browser": "node ./scripts/browser-a11y.mjs",
+    "test:docker-repro": "node ./scripts/docker-repro.mjs",
+    "test:docker-runtime": "node ./scripts/docker-runtime.mjs",
+    "verify:aiws-packet": "node ./scripts/aiws-v3-packet.mjs",
+    "check:diff": "node ./scripts/git-diff-check.mjs",
+    "release:artifacts": "node ./scripts/build-release-artifacts.mjs",
+    "verify": "npm run test:syntax && npm run verify:aiws-packet && npm test && npm run doctor && npm run collect:fixture && npm run daily:fixture && npm run check:diff",
     "doctor": "node ./bin/designsignal.mjs doctor",
-    "collect:fixture": "node ./bin/designsignal.mjs collect --fixture --dry-run",
-    "daily:fixture": "node ./bin/designsignal.mjs daily --fixture --dry-run",
+    "collect:fixture": "node ./bin/designsignal.mjs collect --fixture --dry-run --date 2026-08-31",
+    "daily:fixture": "node ./bin/designsignal.mjs daily --fixture --dry-run --date 2026-08-31",
     "daily:live": "node ./bin/designsignal.mjs daily",
     "start": "node ./bin/designsignal.mjs serve"
+  },
+  "devDependencies": {
+    "@playwright/test": "1.61.1",
+    "axe-core": "4.10.3"
   },
   "license": "MIT"
 }

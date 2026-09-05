@@ -3,7 +3,7 @@ import https from 'node:https';
 import { isIP } from 'node:net';
 import { cleanText, sleep } from './util.mjs';
 
-const RETRYABLE_STATUS = new Set([408, 425, 429, 500, 502, 503, 504]);
+const EXPLICIT_RETRYABLE_STATUS = new Set([408, 425, 429]);
 
 export async function validatePublicUrl(input, { allowedHosts, resolver = defaultResolver } = {}) {
   let url;
@@ -37,11 +37,14 @@ export async function requestBytes(
     method = 'GET',
     body = null,
     redirectLimit = 3,
-    signal = null
+    signal = null,
+    requester = singleRequest
   } = {}
 ) {
+  const normalizedMethod = String(method || 'GET').toUpperCase();
+  const retryBudget = ['GET', 'HEAD'].includes(normalizedMethod) ? retries : 0;
   let lastError;
-  for (let attempt = 0; attempt <= retries; attempt += 1) {
+  for (let attempt = 0; attempt <= retryBudget; attempt += 1) {
     try {
       const response = await requestWithRedirects(input, {
         allowedHosts,
@@ -49,19 +52,21 @@ export async function requestBytes(
         timeoutMs,
         maxBytes,
         headers,
-        method,
+        method: normalizedMethod,
         body,
         redirectLimit,
-        signal
+        signal,
+        requester,
+        addressOffset: attempt
       });
-      if (RETRYABLE_STATUS.has(response.status) && attempt < retries) {
+      if (retryableStatus(response.status) && attempt < retryBudget) {
         await sleep(retryDelay(attempt, response.headers['retry-after']), signal);
         continue;
       }
       return { ...response, attempts: attempt + 1 };
     } catch (error) {
       lastError = error;
-      if (attempt >= retries || !retryable(error)) throw error;
+      if (attempt >= retryBudget || !retryableTransportError(error)) throw error;
       await sleep(retryDelay(attempt), signal);
     }
   }
@@ -72,7 +77,7 @@ async function requestWithRedirects(input, options) {
   let current = String(input);
   for (let redirects = 0; redirects <= options.redirectLimit; redirects += 1) {
     const target = await validatePublicUrl(current, options);
-    const response = await singleRequest(target, options);
+    const response = await options.requester(target, options);
     if (![301, 302, 303, 307, 308].includes(response.status)) return { ...response, url: target.url.href, redirects };
     if (!['GET', 'HEAD'].includes(String(options.method || 'GET').toUpperCase()))
       throw networkError('redirect_for_method_forbidden');
@@ -85,7 +90,7 @@ async function requestWithRedirects(input, options) {
 }
 
 function singleRequest(target, options) {
-  const address = target.addresses[0];
+  const address = selectPinnedAddress(target.addresses, options.addressOffset);
   return new Promise((resolve, reject) => {
     let settled = false;
     const finishReject = (error) => {
@@ -99,7 +104,7 @@ function singleRequest(target, options) {
         method: options.method,
         headers: {
           accept: '*/*',
-          'user-agent': 'DesignSignal/5.0 (+https://github.com/Cloudsflee/designsignal-v5-replay)',
+          'user-agent': 'DesignSignal/6.0 (+https://github.com/Cloudsflee/designsignal-v5-replay)',
           ...options.headers
         },
         servername: target.hostname,
@@ -236,8 +241,18 @@ function retryDelay(attempt, retryAfter) {
   return Math.min(8000, 250 * 2 ** attempt);
 }
 
-function retryable(error) {
+function retryableStatus(status) {
+  return EXPLICIT_RETRYABLE_STATUS.has(status) || (status >= 500 && status <= 599);
+}
+
+function retryableTransportError(error) {
   return !['url_invalid', 'https_required', 'url_credentials_forbidden', 'url_port_forbidden', 'host_not_allowed', 'private_network_forbidden', 'response_too_large', 'redirect_for_method_forbidden'].includes(error?.code);
+}
+
+export function selectPinnedAddress(addresses, offset = 0) {
+  if (!Array.isArray(addresses) || !addresses.length) throw networkError('dns_no_address');
+  const index = Math.abs(Number(offset) || 0) % addresses.length;
+  return addresses[index];
 }
 
 function normalizeNetworkError(error) {

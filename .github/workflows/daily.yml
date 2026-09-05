@@ -31,7 +31,9 @@ jobs:
       DESIGNSIGNAL_MODEL: ${{ vars.DESIGNSIGNAL_MODEL }}
       DESIGNSIGNAL_OPENAI_BASE_URL: ${{ vars.DESIGNSIGNAL_OPENAI_BASE_URL }}
       DESIGNSIGNAL_OPENAI_API_KEY: ${{ secrets.DESIGNSIGNAL_OPENAI_API_KEY }}
-      DESIGNSIGNAL_PUSH_CHANNELS: ${{ vars.DESIGNSIGNAL_PUSH_CHANNELS || 'generic' }}
+      DESIGNSIGNAL_PUSH_CHANNELS: feishu
+      DESIGNSIGNAL_REQUIRED_CHANNEL: feishu
+      DESIGNSIGNAL_LIVE_DEADLINE_MS: 1200000
       DESIGNSIGNAL_WEBHOOK_URL: ${{ secrets.DESIGNSIGNAL_WEBHOOK_URL }}
       FEISHU_WEBHOOK_URL: ${{ secrets.FEISHU_WEBHOOK_URL }}
       WECOM_WEBHOOK_URL: ${{ secrets.WECOM_WEBHOOK_URL }}
@@ -42,14 +44,19 @@ jobs:
           node-version: 24
           cache: npm
       - run: npm ci --ignore-scripts
-      - run: npm test
-      - run: node ./bin/designsignal.mjs doctor
+      - run: npm run verify
+      - run: npm run test:performance
+      - run: npx playwright install --with-deps chromium
+      - run: npm run test:browser
+      - run: npm run test:docker-repro
+      - run: npm run test:docker-runtime
       - name: Generate daily report
         shell: bash
         run: |
           DATE="$(TZ=Asia/Shanghai date +%F)"
           if [ "$RUN_MODE" = "live" ]; then
             node ./bin/designsignal.mjs daily --date "$DATE"
+            node ./bin/designsignal.mjs verify --date "$DATE" --require-channel feishu
           else
             node ./bin/designsignal.mjs daily --fixture --date "$DATE" --no-push
           fi
@@ -65,6 +72,7 @@ jobs:
             data/reports/
             data/manifest.jsonl
             data/outbox/
+            data/runs/
             data/cache/index.jsonl
           if-no-files-found: warn
           retention-days: 30

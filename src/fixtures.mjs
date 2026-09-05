@@ -57,7 +57,10 @@ export function fixtureSignals(date) {
         'The offline product fixture shows a removable shell, standard fasteners, and a component cost table to validate image and product-analysis paths.',
       methodZh: '拆解路径、材料选择、成本与维修时间对比。',
       methodEn: 'Teardown path, material choice, cost, and repair-time comparison.',
-      image: '/assets/product-signal.png',
+      image: {
+        url: '/assets/product-signal.png',
+        sha256: '9671afc832e40216dbaafc145dd290838ab27980a51d60e635eeaf5abc8e2b0b'
+      },
       mappings: [
         syllabusTopic('337', '337-engineering', '材料与制造'),
         syllabusTopic('337', '337-engineering', '成本与知识产权')
@@ -77,7 +80,10 @@ export function fixtureSignals(date) {
         'The offline interface fixture preserves offline states, text fallbacks, step recovery, and keyboard navigation.',
       methodZh: '关键任务走查、弱网模拟与可访问性检查。',
       methodEn: 'Critical-task walkthrough, constrained-network simulation, and accessibility review.',
-      image: '/assets/ui-signal.png',
+      image: {
+        url: '/assets/ui-signal.png',
+        sha256: '5589ee7b67bf9d61906f8ba141232341c91bab8017fcfd51a0e149198c26d8d7'
+      },
       mappings: [
         syllabusTopic('337', '337-engineering', '人机工学'),
         syllabusTopic('902', '902-system', '多样用户'),
@@ -164,7 +170,18 @@ function signal({
     publishedAt,
     fetchedAt,
     authors: ['DesignSignal offline fixture'],
-    image: image ? { url: image, altZh: titleZh, altEn: titleEn, license: 'generated-fixture' } : null,
+    image: image
+      ? {
+          url: image.url,
+          altZh: titleZh,
+          altEn: titleEn,
+          license: 'generated-fixture',
+          sha256: image.sha256,
+          mimeType: 'image/png',
+          verified: true,
+          cached: true
+        }
+      : null,
     access: { status: 'public', openAccess: true, paywalled: false, loginRequired: false },
     license: { status: 'fixture-generated', name: 'Project fixture', url: null },
     content: { mimeType: 'application/json', bytes: 0, sha256: null, cached: false },

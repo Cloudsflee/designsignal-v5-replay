@@ -168,6 +168,55 @@ export function parseAllowlistedPage(html, { source, category = 'product', fetch
   ];
 }
 
+export function parseListingLinks(html, { baseUrl, maximum = 3, pathPrefixes = [] } = {}) {
+  let base;
+  try {
+    base = new URL(baseUrl);
+  } catch {
+    throw parserError('listing_base_url_invalid');
+  }
+  const limit = Math.max(0, Math.min(10, Number(maximum) || 0));
+  if (limit === 0) return [];
+  const candidates = [];
+  const seen = new Set();
+  let order = 0;
+  for (const tag of String(html).match(/<a\b[^>]*>/gi) || []) {
+    const href = attributes(tag).href;
+    if (!href) continue;
+    let url;
+    try {
+      url = new URL(href, base);
+    } catch {
+      continue;
+    }
+    if (url.protocol !== 'https:' || url.hostname !== base.hostname) continue;
+    url.hash = '';
+    for (const key of [...url.searchParams.keys()])
+      if (/^(?:utm_|ref$|source$|medium$|campaign$)/i.test(key)) url.searchParams.delete(key);
+    if (url.href === base.href || url.pathname === '/' || /\.(?:png|jpe?g|gif|webp|svg|css|js|xml|json|pdf)$/i.test(url.pathname))
+      continue;
+    const normalized = url.href;
+    if (seen.has(normalized)) continue;
+    const prefixes = (Array.isArray(pathPrefixes) ? pathPrefixes : []).filter((prefix) => String(prefix).startsWith('/'));
+    if (prefixes.length && !prefixes.some((prefix) => url.pathname.startsWith(prefix))) continue;
+    if (/\/(?:about|contact|terms|privacy|advertising|jobs|directory|guides|newsletter)(?:\/|$)/i.test(url.pathname)) continue;
+    if (/\/(?:academy-plan|websites\/(?:nominees|sites_of_the_day))(?:\/|$)/i.test(url.pathname)) continue;
+    seen.add(normalized);
+    const baseDepth = base.pathname.split('/').filter(Boolean).length;
+    const depth = url.pathname.split('/').filter(Boolean).length;
+    const score =
+      (prefixes.some((prefix) => url.pathname.startsWith(prefix)) ? 100 : 0) +
+      Math.max(0, depth - baseDepth) * 10 +
+      (/\/(?:posts?|sites?|articles?)\//i.test(url.pathname) ? 30 : 0) +
+      (/\/20\d{2}\//.test(url.pathname) ? 20 : 0);
+    candidates.push({ url: normalized, score, order: order++ });
+  }
+  return candidates
+    .sort((left, right) => right.score - left.score || left.order - right.order || left.url.localeCompare(right.url))
+    .slice(0, limit)
+    .map((entry) => entry.url);
+}
+
 function reconstructAbstract(index) {
   if (!index || typeof index !== 'object') return '';
   const words = [];

@@ -1,7 +1,7 @@
-name: designsignal-v5
+name: designsignal-v6
 
 x-common: &common
-  image: designsignal-v5-replay:5.0.0
+  image: designsignal-v5-replay:6.0.0
   build:
     context: .
   init: true
@@ -14,7 +14,7 @@ x-common: &common
   tmpfs:
     - /tmp:size=32m,mode=1777
   volumes:
-    - designsignal-v5-data:/app/data
+    - designsignal-v6-data:/app/data
     - ./config:/app/config:ro
   env_file:
     - path: .env
@@ -27,7 +27,7 @@ x-common: &common
 services:
   dashboard:
     <<: *common
-    container_name: designsignal-v5-dashboard
+    container_name: designsignal-v6-dashboard
     ports:
       - "127.0.0.1:${DESIGNSIGNAL_PUBLIC_PORT:-3385}:3379"
     command: ["node", "./bin/designsignal.mjs", "serve"]
@@ -40,7 +40,7 @@ services:
 
   scheduler:
     <<: *common
-    container_name: designsignal-v5-scheduler
+    container_name: designsignal-v6-scheduler
     command: ["node", "./bin/designsignal.mjs", "schedule"]
     depends_on:
       dashboard:
@@ -49,5 +49,5 @@ services:
       disable: true
 
 volumes:
-  designsignal-v5-data:
-    name: designsignal-v5-data
+  designsignal-v6-data:
+    name: designsignal-v6-data

@@ -1,24 +1,85 @@
 # Architecture
 
-DesignSignal is a Node.js 24 ESM application with no production dependencies. The same validated daily report object drives JSON, Markdown, portable HTML, the Dashboard, and delivery payloads.
+DesignSignal V6 is a Node.js 24 ESM application with zero production dependencies. It remains a Zhejiang University 337/902 study product. V6 changes reliability contracts, not product scope.
 
-## Data flow
+## Ownership
 
-1. `sources.mjs` fetches OpenAlex JSON, arXiv Atom, RSS/Atom, or allowlisted page metadata.
-2. `security.mjs` validates HTTPS, host allowlists, DNS answers, redirect targets, timeout, retry, and byte limits before content is accepted.
-3. `cache.mjs` stores live responses as content-addressed blobs and appends provenance metadata.
-4. `select.mjs` applies 2/1/1/2 quotas, source and language diversity, and a 60-day canonical-ID window. A shortage remains a shortage.
-5. `analyze.mjs` uses a Responses-compatible model when configured, validates its structured output twice, and otherwise uses an explicitly non-authoritative deterministic fallback.
-6. `report.mjs` builds evidence-balanced hypotheses and one 150-minute core exercise.
-7. `storage.mjs` holds a date lock for the full live run and atomically writes JSON, Markdown, and HTML before appending the manifest.
-8. `outbox.mjs` persists message bodies and environment-variable references, then resolves webhook endpoints only in memory.
+| Owner | Responsibility |
+|---|---|
+| `sources.mjs` | `designsignal.sources.v2`, collection, bounded listing/detail traversal, source health |
+| `security.mjs` | HTTPS/allowlist/public-DNS/pinned lookup, bytes, redirect, deadline signal, retry policy |
+| `select.mjs` | deterministic `2/1/1/2`, diversity, 60-day dedupe, shortage audit |
+| `analyze.mjs` | Responses-compatible analysis, application-level validation retry, non-authoritative fallback |
+| `report.mjs` + `outcome.mjs` | `designsignal.daily.v2`, content outcome, Markdown/HTML derivation |
+| `storage.mjs` | date lock, atomic report publication, immutable dated directory, append-only manifest |
+| `outbox.mjs` | one four-channel registry, outbox.v2 state machine, v1 compatibility, reconciliation |
+| `run-receipt.mjs` | seven-stage `designsignal.run-receipt.v1`, safe error codes, duration/retry/source summary |
+| `readiness.mjs` | content/source/model/delivery/integrity/SLO aggregation and persisted verification |
+| `server.mjs` + `dashboard.mjs` | safe API projections and the existing V5 visual direction with reliability status |
 
-## Invariants
+No second report store, Outbox ledger, run ledger, or delivery state machine is introduced.
 
-- A dry-run does not create the data directory.
-- A complete report contains exactly two papers, one product, one UI case, and two frontier signals.
-- Product and UI records require visual evidence.
-- Every analysis citation contains fetch time and content SHA-256.
-- Hypotheses always include evidence, counterevidence, confidence below 1, and `working_hypothesis` status.
-- Report writers for the same Shanghai date cannot overlap.
-- No credential value enters a report, cache index, outbox file, log, or API response.
+## Daily transaction boundary
+
+One date lock covers the whole non-dry run:
+
+```text
+collect -> select -> analyze -> synthesize -> persist -> deliver -> verify
+```
+
+1. `collect` reads v2 source definitions and live history, fetches bounded public content, and records source degradation.
+2. `select` applies exact quota and dedupe without quota fabrication.
+3. `analyze` calls the configured model only when model and credential are present; each model POST is an explicit application attempt, not a transport replay.
+4. `synthesize` writes a valid v2 report or fails before publication.
+5. `persist` atomically publishes JSON/Markdown/HTML, latest pointer, and manifest.
+6. `deliver` creates outbox.v2 tasks, atomically marks each dispatch, and records only confirmed side effects.
+7. `verify` checks report integrity and manifest presence; final readiness additionally evaluates Outbox, SLO, and persisted file hashes.
+
+A live `AbortSignal` enforces the hard 20-minute ceiling. A timeout becomes `run_deadline_exceeded` in the failed run receipt.
+
+## Content outcome versus operational readiness
+
+The report owns content-level outcome:
+
+- exact quota;
+- two verified same-origin visual records;
+- authoritative completed model record for each item;
+- all required sources healthy.
+
+Operational readiness adds:
+
+- exactly one confirmed required channel;
+- no unfinished, reconciliation, or failed Outbox task;
+- report and file integrity;
+- a non-failed run receipt within the 20-minute SLO.
+
+The report is immutable after publication. Delivery does not rewrite the report; APIs and the Dashboard derive current readiness from report + run receipt + Outbox.
+
+## Version compatibility
+
+- New reports: `designsignal.daily.v2`.
+- Historical reports: `designsignal.daily.v1`, read-only and never rewritten.
+- New deliveries: `designsignal.outbox.v2`.
+- Historical webhook records: `designsignal.outbox.v1`, processed without schema conversion.
+- Historical Feishu document records: numeric schema `1`, processed/reconciled in their original shape.
+
+## Data layout
+
+```text
+data-v6/
+  reports/YYYY-MM-DD/{report.json,report.md,report.html}
+  reports/latest.json
+  runs/YYYY-MM-DD-run_*.json
+  runs/latest.json
+  outbox/*.json
+  cache/blobs/<prefix>/<sha256>
+  cache/index.jsonl
+  manifest.jsonl
+  feedback/YYYY-MM-DD.jsonl
+```
+
+Run receipts and public API projections contain relative report refs only. They exclude credentials, endpoint values, full model input, delivery payloads, and host absolute paths.
+
+## Fresh-volume and rollback boundary
+
+V6 uses `designsignal-v6-data`. V5 never reads V6 reports or Outbox state. Rollback switches code/image and the deployment pointer back to the archived V5 snapshot; it does not downgrade-write V6 data.

@@ -1,0 +1,23 @@
+{
+  "meta": { "count": 1 },
+  "results": [
+    {
+      "id": "https://openalex.org/W-FIXTURE",
+      "doi": "https://doi.org/10.0000/sanitized-fixture",
+      "title": "Evidence-Aware Interface Review",
+      "language": "en",
+      "publication_date": "2026-08-20",
+      "abstract_inverted_index": { "Evidence": [0], "aware": [1], "review": [2] },
+      "open_access": { "is_oa": true },
+      "primary_location": {
+        "landing_page_url": "https://publisher.example.org/article",
+        "pdf_url": "https://publisher.example.org/article.pdf",
+        "license": "cc-by",
+        "source": { "id": "S-FIXTURE", "display_name": "Sanitized Journal", "homepage_url": "https://publisher.example.org/" }
+      },
+      "authorships": [
+        { "author": { "display_name": "Fixture Author" }, "institutions": [{ "display_name": "Fixture Lab" }] }
+      ]
+    }
+  ]
+}

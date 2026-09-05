@@ -1,6 +1,15 @@
-# DesignSignal V5 Replay
+# DesignSignal V6 Reliability Replay
 
-DesignSignal creates an auditable daily set of public design and AI signals for Zhejiang University 337/902 study. It collects bounded public sources, selects a deterministic `2 papers / 1 product / 1 UI / 2 frontier` set, produces bilingual evidence analysis, maps it to the versioned 2027 syllabus, records working hypotheses with counterevidence, and generates one detailed core exercise.
+DesignSignal remains focused on Zhejiang University 337/902. It collects a bounded public-source set, selects exactly `2 papers / 1 product / 1 UI / 2 frontier` records, analyzes them against the fixed 2027 syllabus, persists an auditable report, and closes delivery through a durable Outbox.
+
+V6 adds a reliability loop without changing the product into a general intelligence platform:
+
+- new reports use `designsignal.daily.v2`; immutable V5 `designsignal.daily.v1` reports remain readable and are never rewritten;
+- content outcome is `completed` or `completed_with_gaps` with structured gap codes;
+- every persisted run writes `designsignal.run-receipt.v1` for `collect -> select -> analyze -> synthesize -> persist -> deliver -> verify`;
+- source catalogs use `designsignal.sources.v2` with required/optional classification, adapter, detail-page bound, and visual-evidence policy;
+- new deliveries use `designsignal.outbox.v2`; webhook v1 and Feishu document v1 records remain readable and processable under their original schema;
+- `/api/readiness`, `/api/runs/latest`, and `verify --require-channel` expose safe operational state without payloads, endpoints, credentials, full model input, or host paths.
 
 The runtime is Node.js 24 ESM with zero production dependencies.
 
@@ -8,96 +17,164 @@ The runtime is Node.js 24 ESM with zero production dependencies.
 
 ```bash
 npm ci
-npm test
-node ./bin/designsignal.mjs doctor
-node ./bin/designsignal.mjs collect --fixture --dry-run --date 2026-07-28
-node ./bin/designsignal.mjs daily --fixture --dry-run --date 2026-07-28
+npm run verify
+npm run test:performance
+npm run test:browser
+node ./bin/designsignal.mjs daily --fixture --dry-run --date 2026-08-31
 node ./bin/designsignal.mjs serve --fixture --port 3379
 ```
 
-Open <http://127.0.0.1:3379>. The offline fixture always contains exactly six records and does not use the network. A dry-run does not create the data directory or write cache, report, manifest, feedback, or outbox files.
+Open `http://127.0.0.1:3379`. The offline fixture always contains exactly six records, performs no network/model/delivery side effects, and writes nothing in dry-run mode. Because its local deterministic analysis is deliberately non-authoritative, its content outcome is `completed_with_gaps` rather than green readiness.
+
+## Completion semantics
+
+`designsignal.daily.v2.outcome.status` is:
+
+- `completed`: exact quota, two verified same-origin visual records, authoritative model result for every selected item, and no degraded required source;
+- `completed_with_gaps`: a valid audit report exists but one or more checks are incomplete;
+- no valid report or a persistence failure: the run receipt is `failed`.
+
+Overall readiness additionally requires:
+
+- the required delivery channel has exactly one confirmed `sent` task;
+- no `pending`, `retry_wait`, `dispatching`, `reconcile_required`, or `failed` task remains;
+- report and persisted file hashes match;
+- the run receipt is complete and the total duration is no more than 20 minutes.
+
+The Dashboard is green only for overall `completed` readiness. A `5/6` report, deterministic/model fallback, degraded required source, pending delivery, reconciliation, integrity mismatch, or missing SLO receipt stays amber.
 
 ## CLI
 
 ```text
 collect   collect, validate, deduplicate, and select signals
-daily     create the full report and, unless dry-run, persist and deliver it
+daily     create, persist, deliver, and verify one daily report
 serve     run the Dashboard and JSON API
-doctor    verify runtime, syllabus, commands, source policy, and optional config
-outbox    show durable delivery state; --retry processes due pending messages
+doctor    verify runtime, source catalog, deadline, commands, and storage
+outbox    show safe durable delivery state; --retry processes due tasks
+verify    verify report, files, run receipt, SLO, and required channel
 schedule  wait for and run each 23:50 Asia/Shanghai boundary
 ```
 
 Common options:
 
 ```text
---fixture                  use the deterministic offline fixture
---dry-run                  perform no writes
+--fixture                  deterministic offline fixture
+--dry-run                  no report/cache/manifest/outbox/run-receipt writes
 --date YYYY-MM-DD          Shanghai report date
---data-dir PATH            report/cache/outbox root
---sources PATH             custom JSON source catalog
---allowed-hosts a.example  comma-separated HTTPS host allowlist
---codex-config PATH        explicit Codex config read in memory
+--data-dir PATH            fresh report/cache/outbox/run root
+--sources PATH             designsignal.sources.v2 JSON catalog
+--allowed-hosts a.example  comma-separated HTTPS allowlist
+--codex-config PATH        explicit Codex config read in memory only
 --model NAME               Responses-compatible model
---no-push                  skip outbox creation for this run
---retry                    with outbox, process due pending delivery records
+--require-channel NAME     delivery channel required by readiness
+--no-push                  skip Outbox creation; readiness remains incomplete
+--retry                    process due Outbox tasks
 ```
 
-## Live pipeline
+Verification and reconciliation:
 
-Live collection supports OpenAlex JSON, arXiv Atom, RSS/Atom, and allowlisted page metadata. Network requests require HTTPS, an explicit host, public DNS answers, bounded redirects, timeout/retry limits, and a byte ceiling. OA PDF processing additionally requires OA metadata, PDF MIME, and a PDF signature. Login, CAPTCHA, paywall, cookie, and private-network bypasses are not supported.
+```bash
+node ./bin/designsignal.mjs verify --date 2026-08-31 --require-channel feishu
+node ./bin/designsignal.mjs outbox --retry --data-dir ./data-v6
+node ./bin/designsignal.mjs outbox reconcile --id MSG_ID --observed absent --confirm --data-dir ./data-v6
+node ./bin/designsignal.mjs outbox reconcile --id MSG_ID --observed document --document-id DOC_ID --revision 8 --confirmed-blocks 50 --confirm --data-dir ./data-v6
+```
 
-A full live daily run holds one date lock from collection through delivery. Outputs are atomically written under `data/reports/YYYY-MM-DD/`:
+Reconciliation verifies task hash, report fingerprint, document identity, revision, and cursor before changing state.
+
+## Source reliability
+
+The default catalog has 14 sources across four fixed groups:
+
+- Paper: OpenAlex, arXiv.
+- Product: Core77, Designboom, Yanko Design.
+- UI: Awwwards, Product Hunt, Dezeen.
+- Frontier: OpenAI, Google DeepMind, Microsoft Research, Hugging Face, Tsinghua, MIT Media Lab.
+
+OpenAlex, Core77, Awwwards, and OpenAI are required. Other sources are bounded redundancy. A parser/page change degrades only that source and never creates a synthetic candidate.
+
+All live requests require HTTPS, an explicit allowlist, public DNS answers, pinned lookup, bounded redirects, byte ceilings, and timeouts. GET/HEAD retry only transport failures, `408`, `425`, `429`, and any `5xx`. Non-idempotent POST requests receive no transport-layer automatic replay.
+
+## Outbox reliability
+
+The channel registry is fixed to `generic`, `feishu`, `wecom`, and `feishu-document`.
+
+New tasks use:
 
 ```text
-report.json
-report.md
-report.html
+pending -> dispatching -> sent | retry_wait | reconcile_required | failed
 ```
 
-`data/manifest.jsonl` and `data/cache/index.jsonl` are append-only. Raw responses are content-addressed under `data/cache/blobs/`. A source shortage is visible in `selection.shortages`; the system never fabricates a replacement.
+The task is atomically persisted as `dispatching` before a remote side effect. A restart that finds an unconfirmed dispatch moves it to `reconcile_required`. Explicitly unaccepted responses such as `429` may back off. Timeout, connection interruption, `5xx`, or malformed success after a non-idempotent side effect require reconciliation and are not replayed automatically.
 
-## Model configuration
+Feishu document writes preserve one document ID, revision, cursor, chunk size of at most 50, and deterministic non-secret client token. Confirmed chunks resume from the persisted cursor; ambiguous create/write results stop.
 
-The analysis path supports an OpenAI-compatible Responses API. Configure environment values from `.env.example`, or pass `--codex-config` to an explicit config file. API keys and webhook URLs stay in process memory and are redacted from errors. Invalid model JSON is retried and then replaced by a marked, non-authoritative deterministic fallback that preserves source evidence.
-
-## Delivery
-
-The durable outbox supports generic JSON webhooks, Feishu, and WeCom. Outbox files store payloads and an environment-variable name such as `FEISHU_WEBHOOK_URL`; they never store the endpoint value. Missing credentials leave a pending record while the report remains available. After restoring credentials, run `node ./bin/designsignal.mjs outbox --retry` to process due pending records without regenerating the daily report.
+Live verification enables only the Feishu webhook. The other three channels are fully exercised with deterministic fixture transports.
 
 ## HTTP API
 
 | Route | Purpose |
 |---|---|
-| `GET /healthz` | runtime, latest date, and next schedule |
+| `GET /healthz` | runtime, latest date, schedule, storage, and content readiness |
+| `GET /api/readiness` | content/source/model/delivery/integrity/SLO checks |
+| `GET /api/runs/latest` | latest safe run receipt |
 | `GET /api/reports/latest` | latest validated report |
-| `GET /api/reports/:date` | dated report |
+| `GET /api/reports/:date` | dated report, including v1 compatibility |
 | `GET /api/syllabus` | versioned 337/902 evidence map |
 | `GET /api/sources/health` | source health and degradation |
-| `GET /api/outbox` | durable delivery state without secrets |
+| `GET /api/outbox` | IDs, channel, state, attempts, times, error code, and public document link only |
 | `POST /api/feedback` | append next-day calibration feedback |
 
-The Dashboard escapes external content and sets CSP, `nosniff`, frame denial, no-referrer, permissions restrictions, and same-origin opener policy.
+## Live gate
 
-## Docker
+Before a Live run, provide an authoritative Responses-compatible model credential and `FEISHU_WEBHOOK_URL` through the process environment/Vault. Use a fresh V6 data directory or volume.
+
+```bash
+export DESIGNSIGNAL_DATA_DIR=./data-v6-live
+export DESIGNSIGNAL_PUSH_CHANNELS=feishu
+export DESIGNSIGNAL_REQUIRED_CHANNEL=feishu
+node ./bin/designsignal.mjs daily --date YYYY-MM-DD
+node ./bin/designsignal.mjs verify --date YYYY-MM-DD --require-channel feishu
+```
+
+Live passes only with exact `2/1/1/2`, two verified local visuals, no degraded required source, authoritative model output, Feishu `sent=1`, no unfinished/failed Outbox task, valid hashes, and total duration no more than 20 minutes. Missing credentials leave the gate incomplete; no success is inferred.
+
+## Docker and fresh volumes
 
 ```bash
 docker compose build
 docker compose up -d
 curl http://127.0.0.1:3385/healthz
+npm run test:docker-repro
+npm run test:docker-runtime
 ```
 
-Compose runs separate Dashboard and scheduler containers against one named data volume. The root filesystem is read-only, all Linux capabilities are dropped, config is mounted read-only, and the process runs as an unprivileged user.
+Compose uses the new `designsignal-v6-data` volume. V5 data is not mounted, migrated, or mutated. The root filesystem is read-only, all Linux capabilities are dropped, configuration is read-only, and the process runs as the unprivileged `node` user.
+
+## Verification inventory
+
+```bash
+npm ci
+npm run verify
+npm run test:performance
+npm run test:browser
+npm run test:docker-repro
+npm run test:docker-runtime
+git diff --check
+```
+
+The browser gate covers `390x844`, `1024x768`, and `1440x900` with Playwright and Axe. See [Verification](docs/VERIFICATION.md) for release and rollback commands.
 
 ## Documentation
 
 - [Architecture](docs/ARCHITECTURE.md)
+- [Reliability contracts](docs/RELIABILITY.md)
+- [Verification and rollback](docs/VERIFICATION.md)
+- [AIWS V3 replay design](docs/AIWS_V3_REPLAY.md)
 - [Authority evidence](docs/EVIDENCE.md)
 - [Source policy](docs/SOURCE_POLICY.md)
 - [Security](docs/SECURITY.md)
 - [Operations](docs/OPERATIONS.md)
 - [Calibration](docs/CALIBRATION.md)
 - [Windows Task Scheduler](docs/WINDOWS_TASK_SCHEDULER.md)
-- [AIWS V2 replay record](docs/AIWS_REPLAY.md)
-
-GitHub Actions runs at `50 15 * * *`, supports manual dispatch, serializes concurrent runs, and retains report artifacts for 30 days. Scheduled jobs on hosted runners can start after the requested minute; each report records its actual generation time.
+- [Historical AIWS V2 replay](docs/AIWS_REPLAY.md)
