@@ -15,6 +15,7 @@ const rollbackPath = path.join(output, 'rollback.ps1');
 try {
   run('git', ['read-tree', base], { env: gitEnvironment });
   run('git', ['add', '-A', '--', '.'], { env: gitEnvironment });
+  const modifiedTree = run('git', ['write-tree'], { env: gitEnvironment, capture: true }).trim();
   const patch = run('git', ['diff', '--cached', '--binary', '--full-index', '--no-ext-diff', base, '--', '.'], {
     env: gitEnvironment,
     capture: true,
@@ -24,17 +25,7 @@ try {
   await fs.writeFile(patchPath, patch);
   run('git', ['apply', '--reverse', '--check', '--binary', '--whitespace=nowarn', patchPath]);
 
-  run('tar', [
-    '-czf',
-    archivePath,
-    '--exclude=.git',
-    '--exclude=node_modules',
-    '--exclude=.tmp',
-    '--exclude=data',
-    '--exclude=test-results',
-    '--exclude=playwright-report',
-    '.'
-  ]);
+  run('git', ['-c', 'core.autocrlf=false', 'archive', '--format=tar.gz', '--output', archivePath, modifiedTree]);
   await fs.copyFile(path.resolve('scripts', 'rollback.ps1'), rollbackPath);
   const artifacts = [];
   for (const file of [archivePath, patchPath, rollbackPath]) {
@@ -49,6 +40,7 @@ try {
   const result = {
     schemaVersion: 'designsignal.release-artifact-manifest.v1',
     baseCommit: base,
+    modifiedTree,
     branch: run('git', ['branch', '--show-current'], { capture: true }).trim(),
     artifacts,
     pass: artifacts.length === 3
