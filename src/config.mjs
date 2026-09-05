@@ -12,15 +12,20 @@ export const DEFAULT_ALLOWED_HOSTS = Object.freeze([
   'tjdi.tongji.edu.cn',
   'dl.acm.org',
   'www.core77.com',
+  's3files.core77.com',
   'www.dezeen.com',
   'www.designboom.com',
   'www.yankodesign.com',
   'www.awwwards.com',
   'www.producthunt.com',
+  'ph-files.imgix.net',
+  'assets.awwwards.com',
+  'static.dezeen.com',
   'openai.com',
   'deepmind.google',
   'www.microsoft.com',
-  'huggingface.co'
+  'huggingface.co',
+  'www.media.mit.edu'
 ]);
 
 export function parseCli(argv = process.argv.slice(2)) {
@@ -67,6 +72,12 @@ export function resolveConfig(options = {}, environment = process.env) {
     timeoutMs: boundedInteger(options.timeoutMs || environment.DESIGNSIGNAL_TIMEOUT_MS, 12_000, 100, 120_000),
     retries: boundedInteger(options.retries || environment.DESIGNSIGNAL_RETRIES, 2, 0, 5),
     maxBytes: boundedInteger(options.maxBytes || environment.DESIGNSIGNAL_MAX_BYTES, 2_000_000, 1024, 25_000_000),
+    liveDeadlineMs: boundedInteger(
+      options.liveDeadlineMs || environment.DESIGNSIGNAL_LIVE_DEADLINE_MS,
+      20 * 60 * 1000,
+      60_000,
+      20 * 60 * 1000
+    ),
     allowedHosts: allowedHosts.length ? allowedHosts : [...DEFAULT_ALLOWED_HOSTS],
     noPush: Boolean(options.noPush),
     once: Boolean(options.once),
@@ -77,7 +88,9 @@ export function resolveConfig(options = {}, environment = process.env) {
     baseUrl:
       cleanText(options.baseUrl || environment.DESIGNSIGNAL_OPENAI_BASE_URL || environment.OPENAI_BASE_URL, 1000) ||
       'https://api.openai.com/v1',
-    apiKey: environment.DESIGNSIGNAL_OPENAI_API_KEY || environment.OPENAI_API_KEY || null
+    apiKey: environment.DESIGNSIGNAL_OPENAI_API_KEY || environment.OPENAI_API_KEY || null,
+    requiredChannel:
+      cleanText(options.requireChannel || options.requiredChannel || environment.DESIGNSIGNAL_REQUIRED_CHANNEL, 50).toLowerCase() || null
   };
 }
 
@@ -91,6 +104,7 @@ export function publicConfig(config) {
     timeoutMs: config.timeoutMs,
     retries: config.retries,
     maxBytes: config.maxBytes,
+    liveDeadlineMs: config.liveDeadlineMs,
     allowedHostCount: config.allowedHosts.length,
     sourcesFileConfigured: Boolean(config.sourcesPath),
     modelConfigured: Boolean(config.model && config.apiKey),

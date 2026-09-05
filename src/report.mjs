@@ -1,10 +1,11 @@
 import { assertReport } from './schema.mjs';
+import { deriveReportOutcome } from './outcome.mjs';
 import { SYLLABUS, SYLLABUS_SNAPSHOT_SHA256 } from './syllabus.mjs';
 import { deterministicId, escapeHtml, sha256, stableStringify } from './util.mjs';
 
 export function buildDailyReport({ date, collection, selection, analyses, generatedAt = new Date().toISOString() }) {
   const report = {
-    schemaVersion: 'designsignal.daily.v1',
+    schemaVersion: 'designsignal.daily.v2',
     id: deterministicId('daily', date, selection.auditSha256),
     date,
     timeZone: 'Asia/Shanghai',
@@ -31,8 +32,15 @@ export function buildDailyReport({ date, collection, selection, analyses, genera
     coreExercise: buildCoreExercise(analyses, date),
     sourceHealth: collection.sourceHealth,
     rejectionAudit: selection.rejected,
+    outcome: null,
     integrity: { contentSha256: null }
   };
+  report.outcome = deriveReportOutcome({
+    selection,
+    analyses,
+    sourceHealth: collection.sourceHealth,
+    evaluatedAt: generatedAt
+  });
   report.integrity.contentSha256 = sha256(stableStringify({ ...report, integrity: { contentSha256: null } }));
   return assertReport(report);
 }
@@ -209,6 +217,7 @@ export function renderReportMarkdown(report) {
     `- 时区 / Time zone: ${report.timeZone}`,
     `- 模式 / Mode: ${report.mode}`,
     `- 选择 / Selection: ${report.items.length}/6 (${report.selection.complete ? 'complete' : 'incomplete'})`,
+    `- 结果 / Outcome: ${report.outcome?.status || (report.selection.complete ? 'completed' : 'completed_with_gaps')}`,
     `- 考纲 / Syllabus: ${report.syllabus.edition}`,
     '',
     '## 今日六条 / Today\'s Signals',

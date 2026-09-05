@@ -4,6 +4,15 @@
   const visibleCount = document.querySelector('#visible-count');
   const noResults = document.querySelector('#no-results');
 
+  for (const image of document.querySelectorAll('[data-evidence-image]')) {
+    image.addEventListener('error', () => {
+      const figure = image.closest('figure');
+      figure?.classList.add('image-error');
+      const fallback = figure?.querySelector('.image-fallback');
+      if (fallback) fallback.hidden = false;
+    });
+  }
+
   for (const group of document.querySelectorAll('[data-filter-group]')) {
     group.addEventListener('click', (event) => {
       const button = event.target.closest('button[data-filter]');

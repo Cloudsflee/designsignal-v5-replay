@@ -1,0 +1,45 @@
+{
+  "schemaVersion": "designsignal.aiws-experiment.v1",
+  "round1": {
+    "aiwsCommit": "5f2be38845d36236637c7f22a1b4df5611a6175b",
+    "home": "AIWS_HOME_ROUND1",
+    "data": "AIWS_DATA_ROUND1",
+    "workspace": "AIWS_WORKSPACE_ROUND1",
+    "volume": "AIWS_VOLUME_ROUND1",
+    "platformMutation": false
+  },
+  "round2": {
+    "trigger": "round1_aiws_blocker_only",
+    "home": "AIWS_HOME_ROUND2",
+    "data": "AIWS_DATA_ROUND2",
+    "workspace": "AIWS_WORKSPACE_ROUND2",
+    "volume": "AIWS_VOLUME_ROUND2",
+    "sharesRound1State": false
+  },
+  "v2Baseline": {
+    "wallClock": "39h18m",
+    "tokens": 10450000,
+    "executions": 24,
+    "superseded": 13,
+    "runtimeFirstSuccess": { "success": 1, "attempts": 8 }
+  },
+  "observations": {
+    "wallClockMs": null,
+    "stageDurationsMs": null,
+    "tokens": null,
+    "executions": null,
+    "attempts": null,
+    "superseded": null,
+    "humanApprovals": null,
+    "humanInputs": null,
+    "manualWorkarounds": null,
+    "contextConvergence": null,
+    "failuresByOwner": null,
+    "checkpointReplays": null,
+    "fullReruns": null,
+    "gateDurationMs": null,
+    "dockerDurationMs": null,
+    "liveDurationMs": null,
+    "deliveryDurationMs": null
+  }
+}

@@ -1,0 +1,15 @@
+{
+  "schemaVersion": "designsignal.aiws-workflow.v1",
+  "name": "DesignSignal V6 Reliability Replay",
+  "workstreams": [
+    { "order": 1, "id": "baseline-compatibility", "name": "Baseline and compatibility contracts", "runner": "host", "dependsOn": [] },
+    { "order": 2, "id": "sources-network", "name": "Sources and network", "runner": "host", "dependsOn": ["baseline-compatibility"] },
+    { "order": 3, "id": "outbox-delivery", "name": "Outbox and delivery", "runner": "host", "dependsOn": ["baseline-compatibility"] },
+    { "order": 4, "id": "outcome-observation", "name": "Outcome and run observation", "runner": "host", "dependsOn": ["sources-network", "outbox-delivery"] },
+    { "order": 5, "id": "dashboard-operations", "name": "Dashboard and operations", "runner": "docker", "dependsOn": ["outcome-observation"] },
+    { "order": 6, "id": "verification-release", "name": "Verification and release", "runner": "docker", "dependsOn": ["dashboard-operations"] }
+  ],
+  "checkpointPolicy": "replay_failed_stage_only",
+  "qualityDimensions": ["coverage", "accuracy", "depth", "consistency", "clarity"],
+  "delivery": { "draftPullRequestFirst": true, "readyAfterAllGatesAndHumanReview": true }
+}

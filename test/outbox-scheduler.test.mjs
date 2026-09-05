@@ -77,7 +77,7 @@ test('configured webhook sends and marks message sent while endpoint remains mem
   assert.equal((await fs.readFile(file, 'utf8')).includes('supersecret123'), false);
 });
 
-test('failed push is retried with bounded backoff and redacted error', async (t) => {
+test('ambiguous push result stops automatic replay and requires reconciliation', async (t) => {
   const root = await temporaryDirectory();
   t.after(() => fs.rm(root, { recursive: true, force: true }));
   const report = await fixtureReport(root);
@@ -91,10 +91,10 @@ test('failed push is retried with bounded backoff and redacted error', async (t)
     },
     now: () => new Date('2026-07-28T16:00:00Z')
   });
-  assert.equal(message.status, 'pending');
+  assert.equal(message.status, 'reconcile_required');
   assert.equal(message.attempts, 1);
-  assert.equal(message.lastError.message.includes('supersecret123'), false);
-  assert.ok(new Date(message.nextAttemptAt) > new Date('2026-07-28T16:00:00Z'));
+  assert.equal(message.lastError.code.includes('supersecret123'), false);
+  assert.equal((await outboxStatus(root)).reconcileRequired, 1);
 });
 
 test('CLI outbox retry processes due pending messages for operators', async (t) => {
@@ -110,7 +110,7 @@ test('CLI outbox retry processes due pending messages for operators', async (t) 
   );
   assert.equal(stderr, '');
   const value = JSON.parse(stdout);
-  assert.equal(value.schemaVersion, 'designsignal.outbox-status.v1');
+  assert.equal(value.schemaVersion, 'designsignal.outbox-status.v2');
   assert.equal(value.retry, true);
   assert.equal(value.processedCount, 1);
   assert.equal(value.pending, 1);

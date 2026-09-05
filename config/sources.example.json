@@ -1,36 +1,53 @@
 {
+  "schemaVersion": "designsignal.sources.v2",
   "sources": [
     {
       "id": "openalex-design-hci",
       "kind": "openalex",
+      "adapter": "openalex",
       "category": "paper",
       "name": "OpenAlex Design & HCI",
       "institution": "OpenAlex",
-      "url": "https://api.openalex.org/works?search=design%20HCI%20AI&per-page=20"
+      "url": "https://api.openalex.org/works?search=design%20HCI%20AI&per-page=20",
+      "required": true,
+      "maxDetailPages": 0,
+      "visualEvidenceRequired": false
     },
     {
       "id": "arxiv-hci-ai",
       "kind": "arxiv",
+      "adapter": "arxiv",
       "category": "paper",
       "name": "arXiv HCI & AI",
       "institution": "arXiv",
-      "url": "https://export.arxiv.org/api/query?search_query=all:%22human-computer%20interaction%22%20AND%20all:AI&start=0&max_results=20"
+      "url": "https://export.arxiv.org/api/query?search_query=all:%22human-computer%20interaction%22%20AND%20all:AI&start=0&max_results=20",
+      "required": false,
+      "maxDetailPages": 0,
+      "visualEvidenceRequired": false
     },
     {
-      "id": "public-lab-feed",
+      "id": "public-product-listing",
+      "kind": "page",
+      "adapter": "listing",
+      "category": "product",
+      "name": "Public product listing",
+      "institution": "Configured by operator",
+      "url": "https://products.example.com/latest",
+      "required": true,
+      "maxDetailPages": 3,
+      "visualEvidenceRequired": true
+    },
+    {
+      "id": "public-frontier-feed",
       "kind": "rss",
+      "adapter": "rss",
       "category": "frontier",
       "name": "Public laboratory feed",
       "institution": "Configured by operator",
-      "url": "https://rsshub.example.com/public/lab/feed"
-    },
-    {
-      "id": "allowlisted-product-page",
-      "kind": "page",
-      "category": "product",
-      "name": "Allowlisted product page",
-      "institution": "Configured by operator",
-      "url": "https://products.example.com/latest"
+      "url": "https://feeds.example.com/lab.xml",
+      "required": false,
+      "maxDetailPages": 0,
+      "visualEvidenceRequired": false
     }
   ]
 }

@@ -5,6 +5,8 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { renderDashboard } from './dashboard.mjs';
 import { outboxStatus } from './outbox.mjs';
+import { evaluateReadiness, verifyPersistedRun } from './readiness.mjs';
+import { readLatestRunReceipt } from './run-receipt.mjs';
 import { nextShanghaiRun } from './scheduler.mjs';
 import { appendManifest, readLatestReport, readReport } from './storage.mjs';
 import { SYLLABUS } from './syllabus.mjs';
@@ -32,13 +34,14 @@ export async function startServer(config, { fallbackReport = null, now = () => n
         const storageWritable = await writableDataPath(config.dataDir);
         return json(response, storageWritable ? 200 : 503, {
           status: storageWritable ? 'ok' : 'degraded',
-          version: '5.0.0',
+          version: '6.0.0',
           uptimeSeconds: Math.floor((now().getTime() - startedAt.getTime()) / 1000),
           timeZone: 'Asia/Shanghai',
           nextRunAt: nextShanghaiRun(now()).toISOString(),
           latestReportDate: report?.date || null,
           mode: config.mode,
-          storageWritable
+          storageWritable,
+          readiness: report ? (report.outcome?.status || 'completed_with_gaps') : 'failed'
         });
       }
       if (request.method === 'GET' && url.pathname === '/api/reports/latest') {
@@ -56,6 +59,29 @@ export async function startServer(config, { fallbackReport = null, now = () => n
         return json(response, 200, { date: report?.date || null, items: report?.sourceHealth || [] });
       }
       if (request.method === 'GET' && url.pathname === '/api/outbox') return json(response, 200, await outboxStatus(config.dataDir));
+      if (request.method === 'GET' && url.pathname === '/api/runs/latest') {
+        const receipt = await readLatestRunReceipt(config.dataDir);
+        return receipt ? json(response, 200, receipt) : json(response, 404, { error: 'run_receipt_not_found' });
+      }
+      if (request.method === 'GET' && url.pathname === '/api/readiness') {
+        const report = (await readLatestReport(config.dataDir)) || fallbackReport;
+        if (!report) return json(response, 404, { error: 'report_not_found' });
+        const receipt = await readLatestRunReceipt(config.dataDir);
+        const readiness = fallbackReport === report && !receipt
+          ? evaluateReadiness({
+              report,
+              outbox: await outboxStatus(config.dataDir, { includeReportIdentity: true }),
+              runReceipt: null,
+              requireChannel: config.requiredChannel,
+              deadlineMs: config.liveDeadlineMs
+            })
+          : await verifyPersistedRun(config.dataDir, {
+              date: report.date,
+              requireChannel: config.requiredChannel,
+              deadlineMs: config.liveDeadlineMs
+            });
+        return json(response, 200, readiness);
+      }
       if (request.method === 'POST' && url.pathname === '/api/feedback') {
         const input = await readJsonBody(request, 64 * 1024);
         if (!['useful', 'not_useful'].includes(input.rating)) return json(response, 400, { error: 'feedback_rating_invalid' });
@@ -71,8 +97,18 @@ export async function startServer(config, { fallbackReport = null, now = () => n
       }
       if (request.method === 'GET' && url.pathname === '/') {
         const report = (await readLatestReport(config.dataDir)) || fallbackReport;
-        const outbox = await outboxStatus(config.dataDir);
-        return html(response, 200, renderDashboard(report, { outbox }));
+        const outbox = await outboxStatus(config.dataDir, { includeReportIdentity: true });
+        const runReceipt = await readLatestRunReceipt(config.dataDir);
+        const readiness = report
+          ? evaluateReadiness({
+              report,
+              outbox,
+              runReceipt,
+              requireChannel: config.requiredChannel,
+              deadlineMs: config.liveDeadlineMs
+            })
+          : null;
+        return html(response, 200, renderDashboard(report, { outbox, readiness, runReceipt }));
       }
       return json(response, 404, { error: 'route_not_found' });
     } catch (error) {

@@ -2,10 +2,17 @@ import { escapeHtml } from './util.mjs';
 
 const categoryLabels = { paper: '论文', product: '产品', ui: '界面', frontier: '前沿' };
 
-export function renderDashboard(report, { outbox = null } = {}) {
+export function renderDashboard(report, { outbox = null, readiness = null, runReceipt = null } = {}) {
   if (!report) return emptyDashboard();
   const sourceHealthy = report.sourceHealth.filter((item) => ['healthy', 'fixture'].includes(item.status)).length;
-  const pending = Number(outbox?.pending || 0);
+  const sourceDegraded = report.sourceHealth.filter((item) => item.status === 'degraded').length;
+  const pending =
+    Number(outbox?.pending || 0) +
+    Number(outbox?.retryWait || 0) +
+    Number(outbox?.dispatching || 0) +
+    Number(outbox?.reconcileRequired || 0);
+  const readinessStatus = readiness?.status || report.outcome?.status || 'completed_with_gaps';
+  const ready = readinessStatus === 'completed';
   return `<!doctype html>
 <html lang="zh-CN">
 <head>
@@ -13,12 +20,13 @@ export function renderDashboard(report, { outbox = null } = {}) {
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="color-scheme" content="light">
   <title>DesignSignal · ${escapeHtml(report.date)}</title>
+  <link rel="icon" href="/assets/product-signal.png">
   <link rel="stylesheet" href="/assets/styles.css">
 </head>
 <body>
   <header class="topbar">
     <a class="brand" href="/" aria-label="DesignSignal 首页"><span class="brand-mark" aria-hidden="true">DS</span><span>DesignSignal</span></a>
-    <div class="topbar-meta"><time datetime="${escapeHtml(report.date)}">${escapeHtml(report.date)}</time><span class="status-dot ${report.selection.complete ? 'ok' : 'warn'}"></span><span>${report.selection.complete ? '日报完整' : '来源不足'}</span></div>
+    <div class="topbar-meta"><time datetime="${escapeHtml(report.date)}">${escapeHtml(report.date)}</time><span class="status-dot ${ready ? 'ok' : 'warn'}"></span><span>${ready ? '全部就绪' : '已完成但有缺口'}</span></div>
   </header>
   <main>
     <section class="report-head" aria-labelledby="daily-heading">
@@ -29,13 +37,35 @@ export function renderDashboard(report, { outbox = null } = {}) {
       </div>
       <dl class="metrics" aria-label="日报状态">
         <div><dt>入选</dt><dd>${report.items.length}<small>/ 6</small></dd></div>
-        <div><dt>来源健康</dt><dd>${sourceHealthy}<small>/ ${report.sourceHealth.length}</small></dd></div>
-        <div><dt>待投递</dt><dd>${pending}</dd></div>
+        <div><dt>Readiness</dt><dd class="metric-status ${ready ? 'ready' : 'gap'}">${ready ? '完成' : '有缺口'}</dd></div>
+        <div><dt>来源降级</dt><dd>${sourceDegraded}<small>/ ${report.sourceHealth.length}</small></dd></div>
+        <div><dt>Outbox 未闭环</dt><dd>${pending}</dd></div>
       </dl>
     </section>
 
+    <section class="readiness-band" aria-labelledby="readiness-heading">
+      <div class="section-title"><div><p class="eyebrow">Reliability loop</p><h2 id="readiness-heading">运行就绪度</h2></div><span class="readiness-badge ${ready ? 'ready' : 'gap'}">${escapeHtml(readinessStatus)}</span></div>
+      <div class="readiness-grid">
+        ${readinessChecks(readiness, report)}
+      </div>
+      <div class="run-grid">
+        <div>
+          <h3>阶段耗时</h3>
+          <ol class="stage-list">${stageRows(runReceipt)}</ol>
+        </div>
+        <div>
+          <h3>结构化缺口</h3>
+          <ul class="gap-list">${gapRows(readiness, report)}</ul>
+        </div>
+        <div>
+          <h3>Outbox</h3>
+          <div class="outbox-summary">${outboxSummary(outbox)}</div>
+        </div>
+      </div>
+    </section>
+
     <section class="signal-workspace" aria-labelledby="signals-heading">
-      <aside class="filters" aria-label="信号筛选">
+      <div class="filters">
         <div class="filter-group">
           <h2>类型</h2>
           <div class="segmented" data-filter-group="category">
@@ -59,7 +89,7 @@ export function renderDashboard(report, { outbox = null } = {}) {
           <input id="confidence-filter" type="range" min="0" max="90" value="0" step="5">
         </div>
         <p class="result-count" aria-live="polite"><span id="visible-count">${report.items.length}</span> 条信号</p>
-      </aside>
+      </div>
 
       <div class="signal-column">
         <div class="section-title"><div><p class="eyebrow">Evidence feed</p><h2 id="signals-heading">六条情报</h2></div><span class="selection-hash" title="选择审计哈希">${escapeHtml(report.selection.auditSha256.slice(0, 10))}</span></div>
@@ -94,6 +124,7 @@ export function renderDashboard(report, { outbox = null } = {}) {
 
     <section class="operations-band" aria-labelledby="source-heading">
       <div class="section-title"><div><p class="eyebrow">Operations</p><h2 id="source-heading">来源状态</h2></div></div>
+      <p class="operations-note">健康 ${sourceHealthy} · 降级 ${sourceDegraded} · required 来源降级会冻结整体 readiness。</p>
       <div class="source-table" role="table" aria-label="来源健康">
         ${report.sourceHealth.map(sourceRow).join('')}
       </div>
@@ -113,7 +144,7 @@ export function renderDashboard(report, { outbox = null } = {}) {
       </form>
     </section>
   </main>
-  <footer><span>Integrity ${escapeHtml(report.integrity.contentSha256.slice(0, 12))}</span><a href="/api/reports/latest">JSON</a><a href="/healthz">Health</a></footer>
+  <footer><span>Integrity ${escapeHtml(report.integrity.contentSha256.slice(0, 12))}${runReceipt?.id ? ` · Run ${escapeHtml(runReceipt.id)}` : ''}</span><a href="/api/readiness">Readiness</a><a href="/api/reports/latest">JSON</a><a href="/healthz">Health</a></footer>
   <script src="/assets/app.js" defer></script>
 </body>
 </html>`;
@@ -123,7 +154,7 @@ function signalCard(item, index) {
   const mappings = item.mappings.map((mapping) => `<span class="mapping-chip"><b>${escapeHtml(mapping.subject)}</b>${escapeHtml(mapping.topic)}</span>`).join('');
   const imageUrl = safeSameOriginImage(item.image?.url);
   const image = imageUrl
-    ? `<figure><img src="${escapeHtml(imageUrl)}" alt="${escapeHtml(item.image.altZh || item.title.zh)}" width="960" height="600" loading="lazy"><figcaption>${escapeHtml(item.image.license || '')}</figcaption></figure>`
+    ? `<figure><img src="${escapeHtml(imageUrl)}" alt="${escapeHtml(item.image.altZh || item.title.zh)}" width="960" height="600" loading="lazy" data-evidence-image><figcaption>${escapeHtml(item.image.license || '')}</figcaption><p class="image-fallback" hidden>视觉证据暂时不可显示；完整性状态已保留。</p></figure>`
     : '';
   const sourceHref = safeExternalHref(item.citations[0].url);
   const sourceLink = sourceHref
@@ -180,7 +211,66 @@ function hypothesisRow(item) {
 
 function sourceRow(item) {
   const state = ['healthy', 'fixture'].includes(item.status) ? 'ok' : item.status === 'empty' ? 'warn' : 'bad';
-  return `<div class="source-row" role="row"><span class="source-state ${state}" aria-label="${escapeHtml(item.status)}"></span><strong role="cell">${escapeHtml(item.sourceName)}</strong><span role="cell">${escapeHtml(item.status)}</span><span role="cell">${item.candidateCount} items</span><span role="cell">${item.latencyMs} ms</span></div>`;
+  return `<div class="source-row" role="row"><span role="cell"><span class="source-state ${state}" aria-hidden="true"></span><span class="sr-only">${escapeHtml(item.status)}</span></span><strong role="cell">${escapeHtml(item.sourceName)}</strong><span role="cell">${item.required ? 'required' : 'optional'} · ${escapeHtml(item.status)}</span><span role="cell">${item.candidateCount} items</span><span role="cell">${item.latencyMs} ms</span></div>`;
+}
+
+function readinessChecks(readiness, report) {
+  const fallback = {
+    content: { status: report.selection.complete ? 'completed' : 'completed_with_gaps' },
+    sources: { status: report.outcome?.checks?.sources?.status || 'completed_with_gaps' },
+    model: { status: report.outcome?.checks?.model?.status || 'completed_with_gaps' },
+    delivery: { status: 'completed_with_gaps' },
+    integrity: { status: 'completed' },
+    slo: { status: 'completed_with_gaps' }
+  };
+  const checks = readiness?.checks || fallback;
+  const labels = {
+    content: '内容',
+    sources: '来源',
+    model: '模型',
+    delivery: '投递',
+    integrity: '完整性',
+    slo: '运行 SLO'
+  };
+  return Object.entries(labels)
+    .map(([key, label]) => {
+      const completed = checks[key]?.status === 'completed';
+      return `<div class="readiness-check ${completed ? 'ready' : 'gap'}"><span>${escapeHtml(label)}</span><strong>${completed ? '通过' : '有缺口'}</strong></div>`;
+    })
+    .join('');
+}
+
+function stageRows(receipt) {
+  if (!receipt?.stages?.length) return '<li><span>暂无持久化运行收据</span><strong>—</strong></li>';
+  return receipt.stages
+    .map(
+      (stage) =>
+        `<li><span>${escapeHtml(stage.name)} · ${escapeHtml(stage.status)}</span><strong>${formatDuration(stage.durationMs)}</strong></li>`
+    )
+    .join('');
+}
+
+function gapRows(readiness, report) {
+  const gaps = readiness?.gaps || report.outcome?.gaps || [];
+  if (!gaps.length) return '<li class="no-gap">无阻断缺口</li>';
+  return gaps.map((gap) => `<li><code>${escapeHtml(gap.code)}</code><span>${escapeHtml(gap.scope)}</span></li>`).join('');
+}
+
+function outboxSummary(outbox) {
+  const entries = [
+    ['sent', outbox?.sent || 0],
+    ['pending', outbox?.pending || 0],
+    ['retry_wait', outbox?.retryWait || 0],
+    ['reconcile', outbox?.reconcileRequired || 0],
+    ['failed', outbox?.failed || 0]
+  ];
+  return entries.map(([label, value]) => `<span class="outbox-chip"><b>${value}</b>${escapeHtml(label)}</span>`).join('');
+}
+
+function formatDuration(value) {
+  if (!Number.isFinite(Number(value))) return '—';
+  if (Number(value) < 1000) return `${Number(value)} ms`;
+  return `${(Number(value) / 1000).toFixed(1)} s`;
 }
 
 function emptyDashboard() {

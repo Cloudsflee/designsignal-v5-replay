@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<feed xmlns="http://www.w3.org/2005/Atom">
+  <entry>
+    <id>https://arxiv.org/abs/2608.00001</id>
+    <updated>2026-08-20T00:00:00Z</updated>
+    <published>2026-08-20T00:00:00Z</published>
+    <title>Reliable Design Agents</title>
+    <summary>Sanitized evidence about trace replay and recovery.</summary>
+    <author><name>Fixture Researcher</name></author>
+    <link href="https://arxiv.org/abs/2608.00001" rel="alternate" />
+    <link href="https://arxiv.org/pdf/2608.00001" title="pdf" type="application/pdf" />
+  </entry>
+</feed>

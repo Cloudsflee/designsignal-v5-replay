@@ -1,0 +1,13 @@
+{
+  "schemaVersion": "designsignal.source-structure-fixtures.v1",
+  "sanitized": true,
+  "fixtures": [
+    { "path": "openalex.json", "adapter": "openalex", "mediaType": "application/json" },
+    { "path": "arxiv.atom.xml", "adapter": "arxiv", "mediaType": "application/atom+xml" },
+    { "path": "publisher.rss.xml", "adapter": "rss", "mediaType": "application/rss+xml" },
+    { "path": "publisher.atom.xml", "adapter": "atom", "mediaType": "application/atom+xml" },
+    { "path": "listing.html", "adapter": "listing", "mediaType": "text/html" },
+    { "path": "detail.html", "adapter": "page", "mediaType": "text/html" },
+    { "path": "visual.png", "adapter": "visual", "mediaType": "image/png" }
+  ]
+}

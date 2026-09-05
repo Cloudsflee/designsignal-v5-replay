@@ -1,0 +1,15 @@
+{
+  "schemaVersion": "designsignal.aiws-context-materials.v1",
+  "project": "DesignSignal V6 Reliability Replay",
+  "materials": [
+    { "id": "readme", "path": "README.md", "label": "product-scope-and-live-contract", "required": true },
+    { "id": "architecture", "path": "docs/ARCHITECTURE.md", "label": "v6-ownership-and-data-flow", "required": true },
+    { "id": "authority", "path": "docs/EVIDENCE.md", "label": "zju-337-902-authority", "required": true },
+    { "id": "v2-replay", "path": "docs/AIWS_REPLAY.md", "label": "historical-v2-observation", "required": true },
+    { "id": "reliability", "path": "docs/RELIABILITY.md", "label": "outcome-outbox-reconciliation", "required": true },
+    { "id": "source-policy", "path": "docs/SOURCE_POLICY.md", "label": "network-and-source-constraints", "required": true },
+    { "id": "security", "path": "docs/SECURITY.md", "label": "redaction-and-non-idempotent-boundary", "required": true },
+    { "id": "verification", "path": "docs/VERIFICATION.md", "label": "gates-evidence-and-rollback", "required": true },
+    { "id": "feishu-history", "path": "docs/aiws-v3/feishu-document-state-machine.md", "label": "validated-historical-document-state-machine", "required": true }
+  ]
+}
